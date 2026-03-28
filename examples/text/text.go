@@ -34,10 +34,17 @@ func (t *TextModule) Default() {
 	if t.Text == "" {
 		t.Text = "Welcome to Kigo"
 	}
+	if t.Version == "" {
+		t.Version = "1.0.0"
+	}
 }
 
 func main() {
-	config := &TextModule{}
+	config := &TextModule{
+		Config: router.Config{
+			Port: 10001,
+		},
+	}
 	err := configuration.ByEnv(config)
 	if err != nil {
 		fmt.Println("Error occurred while loading configuration:", err)
@@ -46,11 +53,12 @@ func main() {
 
 	notificationRoute := routen.NewParams(
 		routen.Base{
-			Method: http.MethodGet,
+			Method: http.MethodPost,
 			Path: "/notification/{value:string}",
 			Name: "notification",
 		},
 		func(ctx *context.Context, params ...string) {
+			fmt.Println("Notification")
 			switch params[0] {
 			case module.NotificationStartUp:
 				var payload module.PayloadStartUp
@@ -85,12 +93,12 @@ func main() {
 				})
 				response.Parse[module.RespReboot](ctx, http.StatusOK, 
 					module.RespReboot{
-						Duation: 10 * time.Second,
+						Duation: 5 * time.Second,
 				})
 			case module.NotificationUpdate:
 				response.Parse[module.RespUpdate](ctx, http.StatusOK, 
 					module.RespUpdate{
-						Duration: 2 * time.Second,
+						Duration: time.Second,
 				})
 			case module.NotificationRender:
 				var payload module.PayloadRender
@@ -114,6 +122,7 @@ func main() {
 		},
 		"value",
 	)
+	
 
 	group := router.NewGroup(config.Name, notificationRoute)
 	
@@ -129,10 +138,12 @@ func main() {
 		fmt.Println("Error occurred while building the handler:", err)
 		return
 	}
-
+	fmt.Println(handler.App().GetRoutes())
+	fmt.Println(config)
 	err = handler.Start()
 	if err != nil {
 		fmt.Println("Error occurred while starting the handler:", err)
 		return
 	}
+	fmt.Println("END")
 }

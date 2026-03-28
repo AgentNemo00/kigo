@@ -81,6 +81,7 @@ type RespRender struct {
 	PositionX int
 	PositionY int
 	// object to render
+	// TODO: change
 	Object any
 }
 
