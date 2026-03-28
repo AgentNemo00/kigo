@@ -14,11 +14,8 @@ import (
 	"github.com/AgentNemo00/sca-instruments/api/router/routen"
 	"github.com/AgentNemo00/sca-instruments/api/validation"
 	"github.com/AgentNemo00/sca-instruments/configuration"
+	"github.com/AgentNemo00/sca-instruments/containerization"
 	"github.com/AgentNemo00/sca-instruments/log"
-)
-
-var (
-	handler *router.Handler = nil
 )
 
 type TextModule struct {
@@ -39,19 +36,17 @@ func (t *TextModule) Default() {
 	}
 }
 
-func main() {
+func Config() (*TextModule, error) {
 	config := &TextModule{
 		Config: router.Config{
 			Port: 10001,
 		},
 	}
-	err := configuration.ByEnv(config)
-	if err != nil {
-		fmt.Println("Error occurred while loading configuration:", err)
-		return
-	}
+	return config, configuration.ByEnv(config)
+}
 
-	notificationRoute := routen.NewParams(
+func InjectNotificationHandler(handler *router.Handler, config *TextModule, restart *bool) routen.Route {
+	return routen.NewParams(
 		routen.Base{
 			Method: http.MethodPost,
 			Path: "/notification/{value:string}",
@@ -78,6 +73,7 @@ func main() {
 				},
 				)
 			case module.NotifcationShutdown:
+				*restart = false
 				err := handler.Stop(ctx.Request().Context())
 				if err != nil {
 					log.Ctx(ctx).Err(err)
@@ -116,34 +112,58 @@ func main() {
 						Object: nil,
 					})
 			default:
-				errors.NotFound(ctx, "NotificationType invalid")
+				errors.NotFound(ctx, fmt.Sprintf("NotificationType invalid: %s", params[0]))
 				return
 			}
 		},
 		"value",
 	)
-	
-
-	group := router.NewGroup(config.Name, notificationRoute)
-	
-	base := router.Base{
-		Version:     *router.NewVersion(config.Version),
-		Groups:      []router.Group{group},
-	}
-
-	handler := router.NewHandler(&config.Config)
-
-	err = handler.Build(base)
-	if err != nil {
-		fmt.Println("Error occurred while building the handler:", err)
-		return
-	}
-	fmt.Println(handler.App().GetRoutes())
-	fmt.Println(config)
-	err = handler.Start()
-	if err != nil {
-		fmt.Println("Error occurred while starting the handler:", err)
-		return
-	}
-	fmt.Println("END")
 }
+
+func ApplicatonHandler(config *TextModule, restart *bool) (*router.Handler, error) {
+		handler := router.NewHandler(&config.Config)
+
+		route := InjectNotificationHandler(handler, config, restart)
+		group := router.NewGroup(config.Name, route)
+	
+		err := handler.Build(router.Base{
+			Version:     *router.NewVersion(config.Version),
+			Groups:      []router.Group{group},
+		})
+		if err != nil {
+			return nil, err
+		}
+		return handler, nil
+}
+
+func main() {
+	config, err := Config() 
+	if err != nil {
+		fmt.Println("Error occurred while loading configuration:", err)
+		return
+	}
+
+	restart := true
+	interrupt := false
+	containerization.Callback(func ()  {
+		interrupt = true
+	})
+
+	for restart == true && interrupt == false {
+		go containerization.Interrupt(func() {})
+
+		handler, err := ApplicatonHandler(config, &restart)
+		if err != nil {
+			fmt.Println("Error occurred while creating the handler:", err)
+			return
+		}
+
+		err = handler.Start()
+		if err != nil {
+			fmt.Println("Error occurred while starting the handler:", err)
+			return
+		}
+	}
+	fmt.Println("Shutdown")
+}
+

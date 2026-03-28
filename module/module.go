@@ -22,17 +22,7 @@ type Config struct {
 	Modules []ModuleConfig
 }
 
-func (c *Config) Default() {
-	if len(c.Modules) == 0 {
-		c.Modules = []ModuleConfig{
-			{
-				Name: "KigoTextModule",
-				Port: 10001,
-			},
-		}
-		// TODO: trigger Kigo Text
-	}
-}
+func (c *Config) Default() {}
 
 const (
 	// ModuleName is the name of the module, used for identification and logging.
