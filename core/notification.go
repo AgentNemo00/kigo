@@ -5,7 +5,7 @@ import (
 )
 
 const (
-	// ModuleName is the name of the module, used for identification and logging.
+	// Basic Notifications
 	NotificationStartUp = "StartUp"
 	NotificationShutdown = "Shutdown"
 	NotificationReboot  = "Reboot"
@@ -34,8 +34,8 @@ type PayloadUpdate struct {
 // called after configutation readed
 type RespStartUp struct {
 	NotificationsOn []string // subcribe to
-	NotificationsSend []string // notification send
-	CallingDuration time.Duration // duration of the call, when should notification render be called
+	NotificationsSend []string // notification publish
+	CallingDuration time.Duration // Interval in which the module should be updated without beeing called directly
 }
 
 type RespReboot struct {
@@ -46,7 +46,7 @@ type RespReboot struct {
 type RespUpdate struct {
 	// Duration needed to update, when should notification render be called
 	Duration time.Duration
-	NotificationsSend []string // notification send
+	NotificationsSend []map[string]any // notification to publish
 }
 
 type RespRender struct {
@@ -54,6 +54,5 @@ type RespRender struct {
 	PositionX int
 	PositionY int
 	// object to render
-	// TODO: change
-	Object any
+	Object []byte
 }
