@@ -7,7 +7,7 @@ import (
 const (
 	// ModuleName is the name of the module, used for identification and logging.
 	NotificationStartUp = "StartUp"
-	NotifcationShutdown = "Shutdown"
+	NotificationShutdown = "Shutdown"
 	NotificationReboot  = "Reboot"
 	NotificationUpdate  = "Update"
 	NotificationRender  = "Render"

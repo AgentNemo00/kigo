@@ -3,7 +3,6 @@ package core
 import (
 	"net/http"
 
-	"github.com/agentnemo00/kigo/core"
 	"github.com/kataras/iris/v12/context"
 
 	"github.com/AgentNemo00/sca-instruments/api/errors"
@@ -31,8 +30,8 @@ func WrapModuleWithRoute(module ModuleInterface) routen.Route {
 		},
 		func(ctx *context.Context, params ...string) {
 			switch params[0] {
-				case core.NotificationStartUp:
-					var payload core.PayloadStartUp
+				case NotificationStartUp:
+					var payload PayloadStartUp
 					err := ctx.ReadJSON(&payload)
 					if err != nil {
 						validation.NewUnmarshalError().Parse(ctx)
@@ -45,24 +44,24 @@ func WrapModuleWithRoute(module ModuleInterface) routen.Route {
 						log.Ctx(ctx).Err(err)
 						return
 					}
-					response.Parse[core.RespStartUp](ctx, http.StatusOK, resp)
-				case core.NotificationShutdown:
+					response.Parse[*RespStartUp](ctx, http.StatusOK, resp)
+				case NotificationShutdown:
 					err := module.OnShutdown(ctx)
 					if err != nil {
 						errors.Internal(ctx, err)
 						log.Ctx(ctx).Err(err)
 						return
 					}
-				case core.NotificationReboot:
+				case NotificationReboot:
 					resp, err := module.OnReboot(ctx)
 					if err != nil {
 						errors.Internal(ctx, err)
 						log.Ctx(ctx).Err(err)
 						return
 					}
-					response.Parse[core.RespReboot](ctx, http.StatusOK, resp)
-				case core.NotifiNotificationUpdate:
-					var payload core.PayloadUpdate
+					response.Parse[*RespReboot](ctx, http.StatusOK, resp)
+				case NotificationUpdate:
+					var payload PayloadUpdate
 					err := ctx.ReadJSON(&payload)
 					if err != nil {
 						validation.NewUnmarshalError().Parse(ctx)
@@ -75,9 +74,9 @@ func WrapModuleWithRoute(module ModuleInterface) routen.Route {
 						log.Ctx(ctx).Err(err)
 						return
 					}
-					response.Parse[core.module.RespUpdate](ctx, http.StatusOK, resp)
-				case core.NotificationRender:
-					var payload core.PayloadRender
+					response.Parse[*RespUpdate](ctx, http.StatusOK, resp)
+				case NotificationRender:
+					var payload PayloadRender
 					err := ctx.ReadJSON(&payload)
 					if err != nil {
 						validation.NewUnmarshalError().Parse(ctx)
@@ -90,7 +89,7 @@ func WrapModuleWithRoute(module ModuleInterface) routen.Route {
 						log.Ctx(ctx).Err(err)
 						return
 					}
-					response.Parse[core.module.RespRender](ctx, http.StatusOK, resp)
+					response.Parse[*RespRender](ctx, http.StatusOK, resp)
 				default:
 					errors.BadRequest(ctx, "invalid notification type")
 				

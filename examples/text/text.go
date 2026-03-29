@@ -32,11 +32,11 @@ func (t *TextModule) Default() {
 	}
 }
 
-func (t *TextModule) OnStartUp(ctx *context.Context, payload core.PayloadStartUp) (core.RespStartUp, error) {
-	return core.RespStartUp{
+func (t *TextModule) OnStartUp(ctx *context.Context, payload core.PayloadStartUp) (*core.RespStartUp, error) {
+	return &core.RespStartUp{
 		NotificationsOn: []string{
 			core.NotificationStartUp,
-			core.NotifcationShutdown,
+			core.NotificationShutdown,
 			core.NotificationReboot,
 			core.NotificationUpdate,
 			core.NotificationRender,

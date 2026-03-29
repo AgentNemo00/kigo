@@ -57,7 +57,7 @@ func (t *TimeModule) OnStartUp(ctx *context.Context, payload core.PayloadStartUp
 	return &core.RespStartUp{
 		NotificationsOn: []string{
 			core.NotificationStartUp,
-			core.NotifcationShutdown,
+			core.NotificationShutdown,
 			core.NotificationReboot,
 			core.NotificationUpdate,
 			core.NotificationRender,
