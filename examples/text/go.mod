@@ -4,7 +4,7 @@ go 1.26.0
 
 require (
 	github.com/AgentNemo00/sca-instruments v0.6.1
-	github.com/agentnemo00/kigo v0.0.0-20260329111130-8ff830636b2a
+	github.com/agentnemo00/kigo v0.0.0-20260329102610-469eb32a87d4
 	github.com/kataras/iris/v12 v12.2.11
 )
 
