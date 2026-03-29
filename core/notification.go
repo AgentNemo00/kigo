@@ -1,28 +1,8 @@
-package module
+package core
 
 import (
 	"time"
 )
-
-type ModuleConfig struct {
-	Name string
-	Port int
-}
-
-func (mc *ModuleConfig) Default() {
-	if mc.Port == 0 {
-		mc.Port = 10001
-	}
-	if mc.Name == "" {
-		panic("Module name cannot be empty")
-	}
-}
-
-type Config struct {
-	Modules []ModuleConfig
-}
-
-func (c *Config) Default() {}
 
 const (
 	// ModuleName is the name of the module, used for identification and logging.
@@ -46,7 +26,7 @@ type PayloadRender struct {
 }
 
 type PayloadUpdate struct {
-	Payload any
+	Payload map[string]any
 }
 
 // Responses wanted on Nofification send
@@ -54,6 +34,8 @@ type PayloadUpdate struct {
 // called after configutation readed
 type RespStartUp struct {
 	NotificationsOn []string // subcribe to
+	NotificationsSend []string // notification send
+	CallingDuration time.Duration // duration of the call, when should notification render be called
 }
 
 type RespReboot struct {
@@ -64,6 +46,7 @@ type RespReboot struct {
 type RespUpdate struct {
 	// Duration needed to update, when should notification render be called
 	Duration time.Duration
+	NotificationsSend []string // notification send
 }
 
 type RespRender struct {
@@ -74,6 +57,3 @@ type RespRender struct {
 	// TODO: change
 	Object any
 }
-
-
-
