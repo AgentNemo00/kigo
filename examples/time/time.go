@@ -41,7 +41,7 @@ func (t *TimeModule) Default() {
 	}
 }
 
-func (t *TimeModule) OnStartUp(ctx *context.Context, payload core.PayloadStartUp) (core.RespStartUp, error) {
+func (t *TimeModule) OnStartUp(ctx *context.Context, payload core.PayloadStartUp) (*core.RespStartUp, error) {
 	loc, err := time.LoadLocation(t.TimeZone)
 	if err != nil {
 		log.Ctx(ctx).Err(err)
@@ -54,7 +54,7 @@ func (t *TimeModule) OnStartUp(ctx *context.Context, payload core.PayloadStartUp
 		return nil, err
 	}
 	t.time = ntpTime.In(t.location)
-	return core.RespStartUp{
+	return &core.RespStartUp{
 		NotificationsOn: []string{
 			core.NotificationStartUp,
 			core.NotifcationShutdown,
@@ -80,21 +80,21 @@ func (t *TimeModule) OnShutdown(ctx *context.Context) error {
 	return nil
 }
 
-func (t *TimeModule) OnReboot(ctx *context.Context) (core.RespReboot, error) {
+func (t *TimeModule) OnReboot(ctx *context.Context) (*core.RespReboot, error) {
 	t.restart = true
 	err := t.handler.Stop(ctx.Request().Context())
 	if err != nil {
 		log.Ctx(ctx).Err(err)
 		return nil, err
 	}
-	return core.RespReboot{
+	return &core.RespReboot{
 		Duration: 2 * time.Second,
 	}, nil
 }
 
-func (t *TimeModule) OnUpdate(ctx *context.Context, payload core.PayloadUpdate) (core.RespUpdate, error) {
+func (t *TimeModule) OnUpdate(ctx *context.Context, payload core.PayloadUpdate) (*core.RespUpdate, error) {
 	if len(payload.Payload) == 0 {
-		return core.RespUpdate{
+		return &core.RespUpdate{
 			Duration: 0,
 			NotificationsSend: []string{},
 		}, nil
@@ -113,21 +113,21 @@ func (t *TimeModule) OnUpdate(ctx *context.Context, payload core.PayloadUpdate) 
 	}
 	t.location = newLoc
 
-	return core.RespUpdate{
+	return &core.RespUpdate{
 		Duration: 0,
 		NotificationsSend: []string{TimeLocationChange},
 	}, nil
 }
 
-func (t *TimeModule) OnRender(ctx *context.Context, payload core.PayloadRender) (core.RespRender, error) {
+func (t *TimeModule) OnRender(ctx *context.Context, payload core.PayloadRender) (*core.RespRender, error) {
 	ntpTime, err := ntp.Time(t.NTPServer)
 	if err != nil {
 		log.Ctx(ctx).Err(err)
 		return nil, err
 	}
 	localtime := ntpTime.In(t.location).Format(t.Format)
-	return core.RespRender{
-		Payload: localtime,
+	return &core.RespRender{
+		Object: localtime,
 	}, nil
 }
 
@@ -138,11 +138,7 @@ func main() {
 		log.Ctx(c.Background()).Err(err)
 		return
 	}
-	route, err := core.WrapModuleWithRoute(module)
-	if err != nil {
-		log.Ctx(c.Background()).Err(err)
-		return
-	}
+	route := core.WrapModuleWithRoute(module)
 
 	interrupt := false
 	containerization.Callback(func ()  {

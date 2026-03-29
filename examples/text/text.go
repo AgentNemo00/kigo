@@ -2,159 +2,159 @@ package main
 
 import (
 	"fmt"
-	"net/http"
 	"time"
-
-	"github.com/agentnemo00/kigo/module"
+	c "context"
 	"github.com/kataras/iris/v12/context"
 
-	"github.com/AgentNemo00/sca-instruments/api/errors"
-	"github.com/AgentNemo00/sca-instruments/api/response"
-	"github.com/AgentNemo00/sca-instruments/api/router"
-	"github.com/AgentNemo00/sca-instruments/api/router/routen"
-	"github.com/AgentNemo00/sca-instruments/api/validation"
 	"github.com/AgentNemo00/sca-instruments/configuration"
-	"github.com/AgentNemo00/sca-instruments/containerization"
 	"github.com/AgentNemo00/sca-instruments/log"
+	"github.com/AgentNemo00/sca-instruments/api/router"
+	"github.com/AgentNemo00/sca-instruments/containerization"
+	"github.com/agentnemo00/kigo/core"
+	"github.com/beevik/ntp"
+)
+
+const(
+	
+	TimeLocationChange = "TimeLocationChange"
+
+	TimeChangeLocationOrder = "TimeChangeLocationOrder"
 )
 
 type TextModule struct {
 	router.Config
-	Text 	string
-	Version string
+	TimeZone string
+	Format   string
+	NTPServer string
+	location *time.Location
+	restart bool
+	handler *router.Handler
+	time time.Time
 }
 
-func (t *TextModule) Default() {
-	if t.Name == "" {
-		t.Name = "KigoTextModule"
+func (t *TimeModule) Default() {
+	if t.TimeZone == "" {
+		t.TimeZone = "Europe/Berlin"
 	}
-	if t.Text == "" {
-		t.Text = "Welcome to Kigo"
-	}
-	if t.Version == "" {
-		t.Version = "1.0.0"
+	if t.Format == "" {
+		t.Format = "15:04"
 	}
 }
 
-func Config() (*TextModule, error) {
-	config := &TextModule{
-		Config: router.Config{
-			Port: 10001,
+func (t *TimeModule) OnStartUp(ctx *context.Context, payload core.PayloadStartUp) (core.RespStartUp, error) {
+	loc, err := time.LoadLocation(t.TimeZone)
+	if err != nil {
+		log.Ctx(ctx).Err(err)
+		return nil, err
+	}
+	t.location = loc
+	ntpTime, err := ntp.Time(t.NTPServer)
+	if err != nil {
+		log.Ctx(ctx).Err(err)
+		return nil, err
+	}
+	t.time = ntpTime.In(t.location)
+	return core.RespStartUp{
+		NotificationsOn: []string{
+			core.NotificationStartUp,
+			core.NotifcationShutdown,
+			core.NotificationReboot,
+			core.NotificationUpdate,
+			core.NotificationRender,
+			TimeChangeLocationOrder,
 		},
+		NotificationsSend: []string{
+			TimeLocationChange,
+		},
+		CallingDuration: time.Minute,
+	}, nil
+}
+
+func (t *TimeModule) OnShutdown(ctx *context.Context) error {
+	t.restart = false
+	err := t.handler.Stop(ctx.Request().Context())
+	if err != nil {
+		log.Ctx(ctx).Err(err)
+		return err
 	}
-	return config, configuration.ByEnv(config)
+	return nil
 }
 
-func InjectNotificationHandler(handler *router.Handler, config *TextModule, restart *bool) routen.Route {
-	return routen.NewParams(
-		routen.Base{
-			Method: http.MethodPost,
-			Path: "/notification/{value:string}",
-			Name: "notification",
-		},
-		func(ctx *context.Context, params ...string) {
-			fmt.Println("Notification")
-			switch params[0] {
-			case module.NotificationStartUp:
-				var payload module.PayloadStartUp
-				err := ctx.ReadJSON(&payload)
-				if err != nil {
-					validation.NewUnmarshalError().Parse(ctx)
-					log.Ctx(ctx).Err(err)
-					return
-				}
-				response.Parse[module.RespStartUp](ctx, http.StatusOK, module.RespStartUp{
-					NotificationsOn: []string{
-						config.Name,
-						module.NotificationStartUp,
-						module.NotifcationShutdown,
-						module.NotificationReboot,
-					},
-				},
-				)
-			case module.NotifcationShutdown:
-				*restart = false
-				err := handler.Stop(ctx.Request().Context())
-				if err != nil {
-					log.Ctx(ctx).Err(err)
-					return
-				}
-			case module.NotificationReboot:
-				time.AfterFunc(time.Second, func() {
-					err := handler.Stop(ctx.Request().Context())
-					if err != nil {
-						log.Ctx(ctx).Err(err)
-						return
-					}
-				})
-				response.Parse[module.RespReboot](ctx, http.StatusOK, 
-					module.RespReboot{
-						Duation: 5 * time.Second,
-				})
-			case module.NotificationUpdate:
-				response.Parse[module.RespUpdate](ctx, http.StatusOK, 
-					module.RespUpdate{
-						Duration: time.Second,
-				})
-			case module.NotificationRender:
-				var payload module.PayloadRender
-				err := ctx.ReadJSON(&payload)
-				if err != nil {
-					validation.NewUnmarshalError().Parse(ctx)
-					log.Ctx(ctx).Err(err)
-					return
-				}
-				// TODO render
-				response.Parse[module.RespRender](ctx, http.StatusOK, 
-					module.RespRender{
-						PositionX: 0,
-						PositionY: 0,
-						Object: nil,
-					})
-			default:
-				errors.NotFound(ctx, fmt.Sprintf("NotificationType invalid: %s", params[0]))
-				return
-			}
-		},
-		"value",
-	)
+func (t *TimeModule) OnReboot(ctx *context.Context) (core.RespReboot, error) {
+	t.restart = true
+	err := t.handler.Stop(ctx.Request().Context())
+	if err != nil {
+		log.Ctx(ctx).Err(err)
+		return nil, err
+	}
+	return core.RespReboot{
+		Duration: 2 * time.Second,
+	}, nil
 }
 
-func ApplicatonHandler(config *TextModule, restart *bool) (*router.Handler, error) {
-		handler := router.NewHandler(&config.Config)
+func (t *TimeModule) OnUpdate(ctx *context.Context, payload core.PayloadUpdate) (core.RespUpdate, error) {
+	if len(payload.Payload) == 0 {
+		return core.RespUpdate{
+			Duration: 0,
+			NotificationsSend: []string{},
+		}, nil
+	}
 
-		route := InjectNotificationHandler(handler, config, restart)
-		group := router.NewGroup(config.Name, route)
-	
-		err := handler.Build(router.Base{
-			Version:     *router.NewVersion(config.Version),
-			Groups:      []router.Group{group},
-		})
-		if err != nil {
-			return nil, err
-		}
-		return handler, nil
+	newLocStr, ok := payload.Payload[TimeChangeLocationOrder].(string)
+	if !ok {
+		err := fmt.Errorf("invalid payload for %s", TimeChangeLocationOrder)
+		log.Ctx(ctx).Err(err)
+		return nil, err
+	}
+	newLoc, err := time.LoadLocation(newLocStr)
+	if err != nil {
+		log.Ctx(ctx).Err(err)
+		return nil, err
+	}
+	t.location = newLoc
+
+	return core.RespUpdate{
+		Duration: 0,
+		NotificationsSend: []string{TimeLocationChange},
+	}, nil
+}
+
+func (t *TimeModule) OnRender(ctx *context.Context, payload core.PayloadRender) (core.RespRender, error) {
+	ntpTime, err := ntp.Time(t.NTPServer)
+	if err != nil {
+		log.Ctx(ctx).Err(err)
+		return nil, err
+	}
+	localtime := ntpTime.In(t.location).Format(t.Format)
+	return core.RespRender{
+		Payload: localtime,
+	}, nil
 }
 
 func main() {
-	config, err := Config() 
+	module := &TimeModule{}
+	err := configuration.ByEnv(module)
 	if err != nil {
-		fmt.Println("Error occurred while loading configuration:", err)
+		log.Ctx(c.Background()).Err(err)
+		return
+	}
+	route, err := core.WrapModuleWithRoute(module)
+	if err != nil {
+		log.Ctx(c.Background()).Err(err)
 		return
 	}
 
-	restart := true
 	interrupt := false
 	containerization.Callback(func ()  {
 		interrupt = true
 	})
 
-	for restart == true && interrupt == false {
+	for module.restart == true && interrupt == false {
 		go containerization.Interrupt(func() {})
 
-		handler, err := ApplicatonHandler(config, &restart)
+		handler, err := core.BuildHandler(&module.Config, route)
 		if err != nil {
-			fmt.Println("Error occurred while creating the handler:", err)
+			log.Ctx(c.Background()).Err(err)
 			return
 		}
 
@@ -164,6 +164,5 @@ func main() {
 			return
 		}
 	}
-	fmt.Println("Shutdown")
-}
 
+}

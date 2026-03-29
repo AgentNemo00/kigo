@@ -15,10 +15,10 @@ import (
 )
 
 type ModuleInterface interface {
-	OnStartUp(ctx *context.Context,payload PayloadStartUp) (RespStartUp, error)
+	OnStartUp(ctx *context.Context,payload PayloadStartUp) (*RespStartUp, error)
 	OnShutdown(ctx *context.Context) error
-	OnReboot(ctx *context.Context) (RespReboot, error)
-	OnUpdate(ctx *context.Context, payload PayloadUpdate) (RespUpdate, error)
+	OnReboot(ctx *context.Context) (*RespReboot, error)
+	OnUpdate(ctx *context.Context, payload PayloadUpdate) (*RespUpdate, error)
 	OnRender(ctx *context.Context, payload PayloadRender) (RespRender, error)
 }
 
@@ -47,7 +47,7 @@ func WrapModuleWithRoute(module ModuleInterface) routen.Route {
 					}
 					response.Parse[core.RespStartUp](ctx, http.StatusOK, resp)
 				case core.NotificationShutdown:
-					err := module.OnShutdown()
+					err := module.OnShutdown(ctx)
 					if err != nil {
 						errors.Internal(ctx, err)
 						log.Ctx(ctx).Err(err)
