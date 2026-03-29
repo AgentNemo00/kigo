@@ -17,7 +17,6 @@ import (
 const(
 	
 	TimeLocationChange = "TimeLocationChange"
-	TimeTimeChange = "TimeTimeChange"
 
 	TimeChangeLocationOrder = "TimeChangeLocationOrder"
 )
@@ -66,7 +65,6 @@ func (t *TimeModule) OnStartUp(ctx *context.Context, payload core.PayloadStartUp
 		},
 		NotificationsSend: []string{
 			TimeLocationChange,
-			TimeTimeChange,
 		},
 		CallingDuration: time.Minute,
 	}, nil
