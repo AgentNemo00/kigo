@@ -35,7 +35,7 @@ type PayloadUpdate struct {
 type RespStartUp struct {
 	NotificationsOn []string // subcribe to
 	NotificationsSend []string // notification publish
-	CallingDuration time.Duration // Interval in which the module should be updated without beeing called directly
+	CallingInterval time.Duration // Interval in which the module should be updated without beeing called directly
 }
 
 type RespReboot struct {
