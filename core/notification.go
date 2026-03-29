@@ -40,7 +40,7 @@ type RespStartUp struct {
 
 type RespReboot struct {
 	// Duration needed to reboot, when should notification startup be called
-	Duation time.Duration
+	Duration time.Duration
 }
 
 type RespUpdate struct {
