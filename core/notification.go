@@ -46,7 +46,7 @@ type RespReboot struct {
 type RespUpdate struct {
 	// Duration needed to update, when should notification render be called
 	Duration time.Duration
-	NotificationsSend []map[string]any // notification to publish
+	NotificationsSend map[string]any // notification to publish
 }
 
 type RespRender struct {
