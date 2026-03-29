@@ -11,49 +11,28 @@ import (
 	"github.com/AgentNemo00/sca-instruments/api/router"
 	"github.com/AgentNemo00/sca-instruments/containerization"
 	"github.com/agentnemo00/kigo/core"
-	"github.com/beevik/ntp"
 )
 
 const(
-	
-	TimeLocationChange = "TimeLocationChange"
+	TextTextChange = "TextTextChange"
 
-	TimeChangeLocationOrder = "TimeChangeLocationOrder"
+	TextChangeTextOrder = "TextChangeTextOrder"
 )
 
 type TextModule struct {
 	router.Config
-	TimeZone string
-	Format   string
-	NTPServer string
-	location *time.Location
+	Value string
 	restart bool
 	handler *router.Handler
-	time time.Time
 }
 
-func (t *TimeModule) Default() {
-	if t.TimeZone == "" {
-		t.TimeZone = "Europe/Berlin"
-	}
-	if t.Format == "" {
-		t.Format = "15:04"
+func (t *TextModule) Default() {
+	if t.Value == "" {
+		t.Value = "Welcome to Kigo!"
 	}
 }
 
-func (t *TimeModule) OnStartUp(ctx *context.Context, payload core.PayloadStartUp) (core.RespStartUp, error) {
-	loc, err := time.LoadLocation(t.TimeZone)
-	if err != nil {
-		log.Ctx(ctx).Err(err)
-		return nil, err
-	}
-	t.location = loc
-	ntpTime, err := ntp.Time(t.NTPServer)
-	if err != nil {
-		log.Ctx(ctx).Err(err)
-		return nil, err
-	}
-	t.time = ntpTime.In(t.location)
+func (t *TextModule) OnStartUp(ctx *context.Context, payload core.PayloadStartUp) (core.RespStartUp, error) {
 	return core.RespStartUp{
 		NotificationsOn: []string{
 			core.NotificationStartUp,
@@ -61,16 +40,16 @@ func (t *TimeModule) OnStartUp(ctx *context.Context, payload core.PayloadStartUp
 			core.NotificationReboot,
 			core.NotificationUpdate,
 			core.NotificationRender,
-			TimeChangeLocationOrder,
+			TextChangeTextOrder,
 		},
 		NotificationsSend: []string{
-			TimeLocationChange,
+			TextTextChange,
 		},
 		CallingDuration: time.Minute,
 	}, nil
 }
 
-func (t *TimeModule) OnShutdown(ctx *context.Context) error {
+func (t *TextModule) OnShutdown(ctx *context.Context) error {
 	t.restart = false
 	err := t.handler.Stop(ctx.Request().Context())
 	if err != nil {
@@ -80,69 +59,53 @@ func (t *TimeModule) OnShutdown(ctx *context.Context) error {
 	return nil
 }
 
-func (t *TimeModule) OnReboot(ctx *context.Context) (core.RespReboot, error) {
+func (t *TextModule) OnReboot(ctx *context.Context) (*core.RespReboot, error) {
 	t.restart = true
 	err := t.handler.Stop(ctx.Request().Context())
 	if err != nil {
 		log.Ctx(ctx).Err(err)
 		return nil, err
 	}
-	return core.RespReboot{
+	return &core.RespReboot{
 		Duration: 2 * time.Second,
 	}, nil
 }
 
-func (t *TimeModule) OnUpdate(ctx *context.Context, payload core.PayloadUpdate) (core.RespUpdate, error) {
+func (t *TextModule) OnUpdate(ctx *context.Context, payload core.PayloadUpdate) (*core.RespUpdate, error) {
 	if len(payload.Payload) == 0 {
-		return core.RespUpdate{
+		return &core.RespUpdate{
 			Duration: 0,
 			NotificationsSend: []string{},
 		}, nil
 	}
 
-	newLocStr, ok := payload.Payload[TimeChangeLocationOrder].(string)
+	newText, ok := payload.Payload[TextChangeTextOrder].(string)
 	if !ok {
-		err := fmt.Errorf("invalid payload for %s", TimeChangeLocationOrder)
+		err := fmt.Errorf("invalid payload for %s", TextChangeTextOrder)
 		log.Ctx(ctx).Err(err)
 		return nil, err
 	}
-	newLoc, err := time.LoadLocation(newLocStr)
-	if err != nil {
-		log.Ctx(ctx).Err(err)
-		return nil, err
-	}
-	t.location = newLoc
-
-	return core.RespUpdate{
+	t.Value = newText
+	return &core.RespUpdate{
 		Duration: 0,
-		NotificationsSend: []string{TimeLocationChange},
+		NotificationsSend: []string{TextTextChange},
 	}, nil
 }
 
-func (t *TimeModule) OnRender(ctx *context.Context, payload core.PayloadRender) (core.RespRender, error) {
-	ntpTime, err := ntp.Time(t.NTPServer)
-	if err != nil {
-		log.Ctx(ctx).Err(err)
-		return nil, err
-	}
-	localtime := ntpTime.In(t.location).Format(t.Format)
-	return core.RespRender{
-		Payload: localtime,
+func (t *TextModule) OnRender(ctx *context.Context, payload core.PayloadRender) (*core.RespRender, error) {
+	return &core.RespRender{
+		Object: t.Value,
 	}, nil
 }
 
 func main() {
-	module := &TimeModule{}
+	module := &TextModule{}
 	err := configuration.ByEnv(module)
 	if err != nil {
 		log.Ctx(c.Background()).Err(err)
 		return
 	}
-	route, err := core.WrapModuleWithRoute(module)
-	if err != nil {
-		log.Ctx(c.Background()).Err(err)
-		return
-	}
+	route:= core.WrapModuleWithRoute(module)
 
 	interrupt := false
 	containerization.Callback(func ()  {

@@ -6,11 +6,11 @@ import (
 	"encoding/json"
 	"bytes"
 
-	"github.com/agentnemo00/kigo/module"
+	"github.com/agentnemo00/kigo/core"
 )
 
 func main() {
-	payload := &module.PayloadStartUp{
+	payload := &core.PayloadStartUp{
 		QueuePosition: 1,
 	}
 	payloadBytes, err := json.Marshal(payload)

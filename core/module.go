@@ -19,7 +19,7 @@ type ModuleInterface interface {
 	OnShutdown(ctx *context.Context) error
 	OnReboot(ctx *context.Context) (*RespReboot, error)
 	OnUpdate(ctx *context.Context, payload PayloadUpdate) (*RespUpdate, error)
-	OnRender(ctx *context.Context, payload PayloadRender) (RespRender, error)
+	OnRender(ctx *context.Context, payload PayloadRender) (*RespRender, error)
 }
 
 func WrapModuleWithRoute(module ModuleInterface) routen.Route {
