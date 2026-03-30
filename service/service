@@ -108,7 +108,7 @@ func (s *Service) MainServiceWorker(ctx context.Context, data core.Notification)
 			moduleObject.Init = true
 			moduleObject.AmountOfReboots = 0
 			if moduleObject.CallingInterval != 0 {
-				// TODO: add it to loop to be called periodically
+				s.TakeInitiative(ctx, moduleObject)
 			}
 		case core.NotificationUpdate:
 			notificationPayload, ok := data.Payload.(core.NotificationUpdatePayload)
@@ -156,6 +156,30 @@ func (s *Service) MainServiceWorker(ctx context.Context, data core.Notification)
 		default:
 			log.Ctx(ctx).Errorf("Received unknown notification: %s", data.Notification)
 
+	}
+}
+
+func (s *Service) TakeInitiative(ctx context.Context, moduleObject config.Module) {
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case moduleObject.CallingInterval == 0:
+			return
+		default:
+			if time.Now().After(moduleObject.TimeLastUpdate.Add(moduleObject.CallingInterval)) {
+				msg := core.Order{
+					From: s.config.Name,
+					To: moduleObject.Name,	
+					Order: core.UpdateOrder,
+					Payload: nil,
+				}
+				err := s.communication.Pub.Publish(ctx, to, msg)
+				if err != nil {
+					log.Ctx(ctx).Error("Error while publishing: %s", err.Error())
+				}
+			}
+		}
 	}
 }
 
