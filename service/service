@@ -1,0 +1,127 @@
+package service
+
+import (
+	"context"
+	"github.com/AgentNemo00/sca-instruments/config"
+	"time"
+	"fmt"
+	"github.com/AgentNemo00/sca-instruments/nats"
+	"github.com/AgentNemo00/sca-instruments/core"
+	"github.com/AgentNemo00/sca-instruments/pubsub"
+	"github.com/AgentNemo00/sca-instruments/log"
+	"github.com/agentnemo00/kigo/module"
+}
+
+type Service struct {
+	config 			*config.Config
+	communication 	*module.Communication
+	cancel 			context.CancelFunc
+}
+
+func (s *Service) Start(ctx context.Context) error {
+	ctx, cancel := context.WithCancel(ctx)
+	s.cancel = cancel		
+	s.channelSubscribers = make(chan core.Notification, len(s.config.Modules)*10)
+	subscription, err := s.communication.Sub.Subscribe(ctx, s.config.Name, func(ctx context.Context, metadata pubsub.Metadata, data *core.Notification, responder pubsub.Responder[core.Order]) {
+		if metadata.Error != nil {
+			log.Ctx(ctx).Errorf("Received error in message: %v", metadata.Error)
+			return
+		}
+		s.MainServiceWorker(ctx, *msg)
+	})
+	if err != nil {
+		return err
+	}
+	s.communication.Subscription = subscription
+}
+
+func (s *Service) Stop(ctx context.Context) error {
+	s.communication.Subscription.Unsubscribe(ctx)
+	s.cancel()
+	return nil
+}
+
+// just in case we have some external service pushing via rest
+func (s *Service) REST()  {
+	if s.config.Ping || s.config.Metrics || s.config.Probes {
+		// TODO: create Handler for it
+	}
+}
+
+func (s *Service) MainServiceWorker(ctx context.Context, data core.Notification) { {
+	switch data.Notification {
+		case core.NotificationReady:
+			notificationPayload, ok := data.Payload.(core.NotificationReadyPayload)
+			if !ok {
+				log.Ctx(ctx).Errorf("Received invalid payload for NotificationReady: %v", data.Payload)
+				return
+			}
+			moduleObject, index := s.config.GetModule(notificationPayload.From)
+			if moduleObject == nil {
+				log.Ctx(ctx).Errorf("Received notification from unknown module: %s", notificationPayload.From)
+				return
+			}
+			moduleObject.TimeReady = notificationPayload.Duration
+			orderPayload := core.OrderStartUpPayload{
+				QueuePosition: index,
+			}
+			err := s.communication.Pub.Publish(ctx, notificationPayload.From, core.Order{
+				From: s.config.Name,
+				To: notificationPayload.From,
+				Order: core.OrderStartUp,
+				Payload: orderPayload,
+			})
+			if err != nil {
+				log.Ctx(ctx).Error("Error while publishing: %s", err.Error())
+			}
+		case core.NotificationUpdate:
+			notificationPayload, ok := data.Payload.(core.NotificationUpdatePayload)
+			if !ok {
+				log.Ctx(ctx).Errorf("Received invalid payload for NotificationUpdate: %v", data.Payload)
+				return
+			}
+			SizeX, SizeY, err := s.GetDimensions(ctx)
+			if err != nil {
+				log.Ctx(ctx).Errorf("Failed to get dimensions: %v", err)
+				return
+			}
+			orderPayload := core.OrderRenderPayload{
+				SizeX: SizeX,
+				SizeY: SizeY,
+			}
+			if notificationPayload.Duration == 0 {
+				go func ()  {
+					err := s.PublishOrder(ctx, notificationPayload.From, orderPayload)
+					if err != nil {
+						log.Ctx(ctx).Error("Error while publishing: %s", err.Error())
+					}					
+				}
+			} else {
+				time.AfterFunc(notificationPayload.Duration, func() {
+					err := s.PublishOrder(ctx, notificationPayload.From, orderPayload)
+					if err != nil {
+						log.Ctx(ctx).Error("Error while publishing: %s", err.Error())
+					}
+				})
+			}
+		case core.NotificationRender:
+			// TODO: forward to UI service create a repo for kigo-ui
+	}
+}
+
+
+
+func (s *Service) GetDimensions(ctx context.Context) (int, int, error) {
+	// TODO: implement dimension retrieval from UI service
+	return 100, 100, nil
+}
+
+func (s *Service) RenderOrder(ctx context.Context, to string, payload core.OrderRenderPayload) error {
+	msg := core.Order{
+		From: s.config.Name,
+		To: to,
+		Order: core.OrderRender,
+		Payload: payload,
+	}
+	return s.communication.Pub.Publish(ctx, to, msg)
+}

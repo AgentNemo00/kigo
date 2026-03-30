@@ -1,58 +1,39 @@
 package core
 
+// Messages send from the module
+
 import (
 	"time"
-)
+)	
 
 const (
-	// Basic Notifications
-	NotificationStartUp = "StartUp"
-	NotificationShutdown = "Shutdown"
-	NotificationReboot  = "Reboot"
-	NotificationUpdate  = "Update"
-	NotificationRender  = "Render"
+    // Basic notifications from the modules to the main service
+	NotificationReady 	= "NotificationReady" // called when the module is ready to receive orders, i.e. after startup procedore, Publish to main
+	NotificationUpdate 	= "NotificationUpdate" // called when the module has an update, i.e. update data or state, Publisch to main
+	NotificationRender 	= "NotificationRender" // called when the module needs to render something, i.e. after update or order, Publish to main
 )
 
-// Payloads for notifications
-
-type PayloadStartUp struct {
-	// Position of the module
-	QueuePosition int
+type Notification struct {
+	From 			string
+	To 				string
+	Notification	string
+	Payload 		any
 }
 
-type PayloadRender struct {
-	SizeX int
-	SizeY int
-}
-
-type PayloadUpdate struct {
-	Payload map[string]any
-}
-
-// Responses wanted on Nofification send
-
-// called after configutation readed
-type RespStartUp struct {
-	NotificationsOn []string // subcribe to
-	NotificationsSend []string // notification publish
+type NotificationReadyPayload struct {
+	Duration time.Duration // Duration needed to be ready, when should order startup be called
 	CallingInterval time.Duration // Interval in which the module should be updated without beeing called directly
 }
 
-type RespReboot struct {
-	// Duration needed to reboot, when should notification startup be called
-	Duration time.Duration
+type NotificationUpdatePayload struct {
+	Duration time.Duration // Duration needed to update, when should notification render be called
 }
 
-type RespUpdate struct {
-	// Duration needed to update, when should notification render be called
-	Duration time.Duration
-	NotificationsSend map[string]any // notification to publish
-}
-
-type RespRender struct {
+type NotificationRenderPayload struct {
 	// where to render
 	PositionX int
 	PositionY int
-	// object to render
-	Object []byte
+
+	Object []byte // object to render
+	Path string // path to the object to render, if object is empty, path should be used
 }
