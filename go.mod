@@ -4,10 +4,7 @@ go 1.26.0
 
 replace github.com/kataras/golog => github.com/kataras/golog v0.1.13
 
-require (
-	github.com/AgentNemo00/sca-instruments v0.6.1
-	github.com/kataras/iris/v12 v12.2.11
-)
+require github.com/AgentNemo00/sca-instruments v0.6.2
 
 require (
 	cel.dev/expr v0.25.1 // indirect
@@ -101,7 +98,8 @@ require (
 	github.com/jinzhu/now v1.1.5 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/kataras/blocks v0.0.12 // indirect
-	github.com/kataras/golog v0.1.15 // indirect
+	github.com/kataras/golog v0.1.13 // indirect
+	github.com/kataras/iris/v12 v12.2.11 // indirect
 	github.com/kataras/jwt v0.1.17 // indirect
 	github.com/kataras/neffos v0.0.24 // indirect
 	github.com/kataras/pio v0.0.14 // indirect
