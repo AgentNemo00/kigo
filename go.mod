@@ -2,6 +2,8 @@ module github.com/agentnemo00/kigo
 
 go 1.26.0
 
+replace github.com/kataras/golog => github.com/kataras/golog v0.1.13
+
 require (
 	github.com/AgentNemo00/sca-instruments v0.6.1
 	github.com/kataras/iris/v12 v12.2.11
@@ -99,7 +101,7 @@ require (
 	github.com/jinzhu/now v1.1.5 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/kataras/blocks v0.0.12 // indirect
-	github.com/kataras/golog v0.1.13 // indirect
+	github.com/kataras/golog v0.1.15 // indirect
 	github.com/kataras/jwt v0.1.17 // indirect
 	github.com/kataras/neffos v0.0.24 // indirect
 	github.com/kataras/pio v0.0.14 // indirect
@@ -112,7 +114,7 @@ require (
 	github.com/mailru/easyjson v0.9.2 // indirect
 	github.com/mattn/go-colorable v0.1.14 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
-	github.com/mattn/go-sqlite3 v1.14.37 // indirect
+	github.com/mattn/go-sqlite3 v1.14.38 // indirect
 	github.com/mediocregopher/radix/v3 v3.8.1 // indirect
 	github.com/microcosm-cc/bluemonday v1.0.27 // indirect
 	github.com/mitchellh/go-homedir v1.1.0 // indirect
