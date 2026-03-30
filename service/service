@@ -34,7 +34,6 @@ func NewService(config *config.Config) (*Service, error) {
 func (s *Service) Start(ctx context.Context) error {
 	ctx, cancel := context.WithCancel(ctx)
 	s.cancel = cancel		
-	s.channelSubscribers = make(chan core.Notification, len(s.config.Modules)*10)
 	subscription, err := s.communication.Sub.Subscribe(ctx, s.config.Name, func(ctx context.Context, metadata pubsub.Metadata, data *core.Notification, responder pubsub.Responder[core.Order]) {
 		if metadata.Error != nil {
 			log.Ctx(ctx).Errorf("Received error in message: %v", metadata.Error)
