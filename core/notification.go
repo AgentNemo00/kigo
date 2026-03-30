@@ -22,7 +22,7 @@ type Notification struct {
 
 type NotificationReadyPayload struct {
 	Duration time.Duration // Duration needed to be ready, when should order startup be called
-	CallingInterval time.Duration // Interval in which the module should be updated without beeing called directly
+	CallingInterval time.Duration // Interval in which the module should be updated without beeing called directly  TODO: needed ?
 }
 
 type NotificationUpdatePayload struct {

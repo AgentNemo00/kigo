@@ -5,6 +5,7 @@ import "github.com/AgentNemo00/sca-instruments/api/router"
 type Config struct {
 	router.Config
 	Modules []Module
+	PubSubUrl string
 	// TODO: output to draw to
 }
 
