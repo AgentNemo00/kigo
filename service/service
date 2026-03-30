@@ -76,16 +76,18 @@ func (s *Service) REST()  {
 }
 
 func (s *Service) MainServiceWorker(ctx context.Context, data core.Notification) { {
+	moduleObject, index := s.config.GetModule(data.From)
+	if moduleObject == nil {
+		log.Ctx(ctx).Errorf("Received notification from unknown module: %s", notificationPayload.From)
+		s.ShutdownOrder(ctx, notificationPayload.From)
+		return
+	}
 	switch data.Notification {
 		case core.NotificationReady:
 			notificationPayload, ok := data.Payload.(core.NotificationReadyPayload)
 			if !ok {
 				log.Ctx(ctx).Errorf("Received invalid payload for NotificationReady: %v", data.Payload)
-				return
-			}
-			moduleObject, index := s.config.GetModule(notificationPayload.From)
-			if moduleObject == nil {
-				log.Ctx(ctx).Errorf("Received notification from unknown module: %s", notificationPayload.From)
+				s.ShutdownOrder(ctx, notificationPayload.From)
 				return
 			}
 			moduleObject.TimeReady = notificationPayload.Duration
@@ -93,9 +95,9 @@ func (s *Service) MainServiceWorker(ctx context.Context, data core.Notification)
 			orderPayload := core.OrderStartUpPayload{
 				QueuePosition: index,
 			}
-			err := s.communication.Pub.Publish(ctx, notificationPayload.From, core.Order{
+			err := s.communication.Pub.Publish(ctx, data.From, core.Order{
 				From: s.config.Name,
-				To: notificationPayload.From,
+				To: data.From,
 				Order: core.OrderStartUp,
 				Payload: orderPayload,
 			})
@@ -103,15 +105,22 @@ func (s *Service) MainServiceWorker(ctx context.Context, data core.Notification)
 				log.Ctx(ctx).Error("Error while publishing: %s", err.Error())
 				return
 			}
+			moduleObject.Init = true
+			moduleObject.AmountOfReboots = 0
+			if moduleObject.CallingInterval != 0 {
+				// TODO: add it to loop to be called periodically
+			}
 		case core.NotificationUpdate:
 			notificationPayload, ok := data.Payload.(core.NotificationUpdatePayload)
 			if !ok {
 				log.Ctx(ctx).Errorf("Received invalid payload for NotificationUpdate: %v", data.Payload)
+				s.RebootOrder(ctx, data.From, moduleObject)
 				return
 			}
 			SizeX, SizeY, err := s.GetDimensions(ctx)
 			if err != nil {
 				log.Ctx(ctx).Errorf("Failed to get dimensions: %v", err)
+				s.UpdateOrder(ctx, data.From)
 				return
 			}
 			orderPayload := core.OrderRenderPayload{
@@ -120,7 +129,7 @@ func (s *Service) MainServiceWorker(ctx context.Context, data core.Notification)
 			}
 			if notificationPayload.Duration == 0 {
 				go func ()  {
-					err := s.PublishOrder(ctx, notificationPayload.From, orderPayload)
+					err := s.PublishOrder(ctx, data.From, orderPayload)
 					if err != nil {
 						log.Ctx(ctx).Error("Error while publishing: %s", err.Error())
 						return
@@ -128,17 +137,19 @@ func (s *Service) MainServiceWorker(ctx context.Context, data core.Notification)
 				}
 			} else {
 				time.AfterFunc(notificationPayload.Duration, func() {
-					err := s.PublishOrder(ctx, notificationPayload.From, orderPayload)
+					err := s.PublishOrder(ctx, data.From, orderPayload)
 					if err != nil {
 						log.Ctx(ctx).Error("Error while publishing: %s", err.Error())
 						return
 					}
 				})
 			}
+			moduleObject.TimeLastUpdate = time.Now()
 		case core.NotificationRender:
 			notificationPayload, ok := data.Payload.(core.NotificationRenderPayload)
 			if !ok {
 				log.Ctx(ctx).Errorf("Received invalid payload for NotificationRender: %v", data.Payload)
+				s.RebootOrder(ctx, data.From, moduleObject)
 				return
 			}
 			// TODO: forward to UI service create a repo for kigo-ui
@@ -148,7 +159,38 @@ func (s *Service) MainServiceWorker(ctx context.Context, data core.Notification)
 	}
 }
 
+func (s *Service) UpdateOrder(ctx context.Context, to string) error {
+	msg := core.Order{
+		From: s.config.Name,
+		To: to,	
+		Order: core.UpdateOrder,
+		Payload: nil,
+	}
+	return s.communication.Pub.Publish(ctx, to, msg)
+}
 
+func (s *Service) RebootOrder(ctx context.Context, to string, moduleObject config.Module) error {
+	if moduleObject.AmountOfReboots >= moduleObject.RebootsAllowed {
+		return s.ShutdownOrder(ctx, to)
+	}
+	msg := core.Order{
+		From: s.config.Name,
+		To: to,	
+		Order: core.OrderReboot,
+		Payload: nil,
+	}
+	return s.communication.Pub.Publish(ctx, to, msg)
+}
+
+func (s *Service) ShutdownOrder(ctx context.Context, to string) error {
+	msg := core.Order{
+		From: s.config.Name,
+		To: to,
+		Order: core.OrderShutdown,
+		Payload: nil,
+	}
+	return s.communication.Pub.Publish(ctx, to, msg)
+}
 
 func (s *Service) GetDimensions(ctx context.Context) (int, int, error) {
 	// TODO: implement dimension retrieval from UI service
