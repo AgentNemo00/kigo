@@ -67,6 +67,7 @@ func (s *Service) REST()  {
 	err := apiHandler.Build(router.Simple())
 	if err != nil {
 		log.Fatal(err)
+		return
 	}
 	err = apiHandler.Start()
 	if err != nil {
@@ -88,6 +89,7 @@ func (s *Service) MainServiceWorker(ctx context.Context, data core.Notification)
 				return
 			}
 			moduleObject.TimeReady = notificationPayload.Duration
+			moduleObject.CallingInterval = notificationPayload.CallingInterval
 			orderPayload := core.OrderStartUpPayload{
 				QueuePosition: index,
 			}
@@ -99,6 +101,7 @@ func (s *Service) MainServiceWorker(ctx context.Context, data core.Notification)
 			})
 			if err != nil {
 				log.Ctx(ctx).Error("Error while publishing: %s", err.Error())
+				return
 			}
 		case core.NotificationUpdate:
 			notificationPayload, ok := data.Payload.(core.NotificationUpdatePayload)
@@ -120,6 +123,7 @@ func (s *Service) MainServiceWorker(ctx context.Context, data core.Notification)
 					err := s.PublishOrder(ctx, notificationPayload.From, orderPayload)
 					if err != nil {
 						log.Ctx(ctx).Error("Error while publishing: %s", err.Error())
+						return
 					}					
 				}
 			} else {
@@ -127,6 +131,7 @@ func (s *Service) MainServiceWorker(ctx context.Context, data core.Notification)
 					err := s.PublishOrder(ctx, notificationPayload.From, orderPayload)
 					if err != nil {
 						log.Ctx(ctx).Error("Error while publishing: %s", err.Error())
+						return
 					}
 				})
 			}
