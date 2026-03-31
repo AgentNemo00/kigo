@@ -17,13 +17,19 @@ func main() {
 		log.Ctx(context.Background()).Err(err)
 		return
 	}
+	if len(c.Modules) == 0 {
+		log.Ctx(context.Background()).Error("no modules detected")
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	c.CheckModules(ctx)
+
+
 	app, err := service.NewService(c)
 	if err != nil {
 		log.Ctx(context.Background()).Err(err)
 		return
 	}
-
-	ctx, cancel := context.WithCancel(context.Background())
+	
 	containerization.Callback(func ()  {
 		app.Stop(ctx)
 		cancel()

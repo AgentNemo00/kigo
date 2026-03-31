@@ -1,11 +1,13 @@
 package config
 
 import (
+	"context"
 	"fmt"
-	"sync"
 
 	"github.com/AgentNemo00/sca-instruments/api/router"
 	"github.com/AgentNemo00/sca-instruments/errors"
+	"github.com/AgentNemo00/sca-instruments/log"
+	"github.com/agentnemo00/kigo-core/util"
 )
 
 type Config struct {
@@ -14,7 +16,6 @@ type Config struct {
 
 	Modules []Module
 
-	mu sync.RWMutex
 	// TODO: output to draw to
 }
 
@@ -35,28 +36,24 @@ func (c *Config) Default() {
 	}
 }
 
-func (c *Config) GetModule(name string) (*Module, int) {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
+// Does a check on modules data and removes if it does not fit
+func (c *Config) CheckModules(ctx context.Context) error {
+	newModuleList := make([]Module, len(c.Modules))
 	for index, module := range c.Modules {
-		if module.Name == name {
-			return &module, index
+		// check rules
+		if module.Path != "" {
+			if !util.Exists(module.Path) {
+				log.Ctx(ctx).Debug("module %d has an invalid path", index)
+				continue
+			}
 		}
-	}
-	return nil, -1
-}
 
-func (c *Config) CreateModule(name string) (*Module, error) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	module, _ := c.GetModule(name)
-	if module != nil {
-		return nil, errors.New(fmt.Errorf("a module with this name already exits"))
+		newModuleList = append(newModuleList, module)
 	}
-	newModule := Module{
-		Name: name,
+	// if modules got removed and there are now empty
+	if len(c.Modules) != len(newModuleList) && len(newModuleList) == 0 {
+		return errors.New(fmt.Errorf("no modules left after checks"))
 	}
-	c.Modules = append(c.Modules, newModule)
-	return &newModule, nil
+	c.Modules = newModuleList
+	return nil
 }
-

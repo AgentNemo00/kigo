@@ -13,8 +13,19 @@ type Module struct {
 	
 	AmountOfReboots int
 }
-
 type Times struct {
 	TimeReady time.Time // time it took to be ready
 	TimeLastUpdate time.Time // time it was last updated
-}	
+}
+
+// unused
+func (m *Module) Shutdown() {
+	m.Init = false
+	m.AmountOfReboots = 0
+}
+
+// unused
+func (m *Module) Reboot() {
+	m.Init = false
+	m.AmountOfReboots++
+}
