@@ -218,7 +218,7 @@ func (s *Service) ShutdownOrder(ctx context.Context, to string) error {
 
 func (s *Service) GetDimensions(ctx context.Context) (int, int, error) {
 	// TODO: implement dimension retrieval from UI service
-	return 100, 100, nil
+	return 1000, 1000, nil
 }
 
 func (s *Service) RenderOrder(ctx context.Context, to string, payload core.OrderRenderPayload) error {
