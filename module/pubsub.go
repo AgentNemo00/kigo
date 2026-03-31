@@ -3,7 +3,7 @@ package module
 import (
 	"github.com/AgentNemo00/sca-instruments/pubsub"
 	"github.com/AgentNemo00/sca-instruments/pubsub/nats"
-	"github.com/agentnemo00/kigo/core"
+	core "github.com/agentnemo00/kigo-core"
 )
 
 type Communication struct {

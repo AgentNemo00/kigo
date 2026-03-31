@@ -54,6 +54,8 @@ github.com/Nerzal/gocloak/v13 v13.9.0 h1:YWsJsdM5b0yhM2Ba3MLydiOlujkBry4TtdzfIzS
 github.com/Nerzal/gocloak/v13 v13.9.0/go.mod h1:YYuDcXZ7K2zKECyVP7pPqjKxx2AzYSpKDj8d6GuyM10=
 github.com/Shopify/goreferrer v0.0.0-20250617153402-88c1d9a79b05 h1:dG7/gLroJGht/jSQtHiLvT48Hxn+crbmvyItZC8cWOs=
 github.com/Shopify/goreferrer v0.0.0-20250617153402-88c1d9a79b05/go.mod h1:NYezi6wtnJtBm5btoprXc5SvAdqH0XTXWnUup0MptAI=
+github.com/agentnemo00/kigo-core v0.1.0 h1:tVPM3JqGRrdK3Lop3LV7sjqQWM75CkJyIwEv6iWVhJ0=
+github.com/agentnemo00/kigo-core v0.1.0/go.mod h1:kzSiNreZ8B/RXew/s0/Mzq7Qq1odvB6z3RW9/1NZuNE=
 github.com/ajg/form v1.5.1 h1:t9c7v8JUKu/XxOGBU0yjNpaMloxGEJhUkqFRq0ibGeU=
 github.com/ajg/form v1.5.1/go.mod h1:uL1WgH+h2mgNtvBq0339dVnzXdBETtL2LeUXaIv25UY=
 github.com/andybalholm/brotli v1.2.0 h1:ukwgCxwYrmACq68yiUqwIWnGY0cTPox/M94sVwToPjQ=

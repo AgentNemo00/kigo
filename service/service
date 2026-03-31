@@ -6,7 +6,7 @@ import (
 	"time"
 	"fmt"
 	"github.com/AgentNemo00/sca-instruments/nats"
-	"github.com/AgentNemo00/sca-instruments/core"
+	core "github.com/agentnemo00/kigo-core"
 	"github.com/AgentNemo00/sca-instruments/pubsub"
 	"github.com/AgentNemo00/sca-instruments/log"
 	"github.com/AgentNemo00/sca-instruments/api/router"

@@ -2,7 +2,7 @@ package main
 
 import (
 	"context"
-	"service"
+	"github.com/agentnemo00/kigo/service"
 
 	"github.com/AgentNemo00/sca-instruments/configuration"
 	"github.com/AgentNemo00/sca-instruments/containerization"
