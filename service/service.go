@@ -91,11 +91,14 @@ func (s *Service) MainServiceWorker(ctx context.Context, data notification.Notif
 				s.ShutdownOrder(ctx, notificationPayload.From)
 				return
 			}
-			moduleObject, err := s.config.CreateModule(data.From)
-			if err != nil {
-				log.Ctx(ctx).Errorf("Could not create new module: %s", data.From)
-				s.ShutdownOrder(ctx, notificationPayload.From)
-				return
+			if moduleObject != nil {
+				// if no name giving
+				moduleObject, err := s.config.CreateModule(data.From)
+				if err != nil {
+					log.Ctx(ctx).Errorf("Could not create new module: %s", data.From)
+					s.ShutdownOrder(ctx, notificationPayload.From)
+					return
+				}					
 			}
 			moduleObject.TimeReady = notificationPayload.Duration
 			moduleObject.CallingInterval = notificationPayload.CallingInterval
