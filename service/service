@@ -21,7 +21,7 @@ type Service struct {
 }
 
 func NewService(config *config.Config) (*Service, error) {
-	communication, err := module.NewCommunication(config.Config)
+	communication, err := module.NewCommunication(config.Config.PubSubUrl)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create communication: %w", err)
 	}
