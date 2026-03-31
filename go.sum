@@ -58,6 +58,8 @@ github.com/agentnemo00/kigo-core v0.1.0 h1:tVPM3JqGRrdK3Lop3LV7sjqQWM75CkJyIwEv6
 github.com/agentnemo00/kigo-core v0.1.0/go.mod h1:kzSiNreZ8B/RXew/s0/Mzq7Qq1odvB6z3RW9/1NZuNE=
 github.com/agentnemo00/kigo-core v0.2.0 h1:TmSmuDp10gVSk5tRdhyl8fVceKM+BWije3HgGgV7Wzc=
 github.com/agentnemo00/kigo-core v0.2.0/go.mod h1:kzSiNreZ8B/RXew/s0/Mzq7Qq1odvB6z3RW9/1NZuNE=
+github.com/agentnemo00/kigo-core v0.2.1-0.20260331144605-c143504b2901 h1:QdIbJ6R3j0jjaZe1mekz/6r8mgFKlIyiQxC2sUMfE7k=
+github.com/agentnemo00/kigo-core v0.2.1-0.20260331144605-c143504b2901/go.mod h1:kzSiNreZ8B/RXew/s0/Mzq7Qq1odvB6z3RW9/1NZuNE=
 github.com/ajg/form v1.5.1 h1:t9c7v8JUKu/XxOGBU0yjNpaMloxGEJhUkqFRq0ibGeU=
 github.com/ajg/form v1.5.1/go.mod h1:uL1WgH+h2mgNtvBq0339dVnzXdBETtL2LeUXaIv25UY=
 github.com/andybalholm/brotli v1.2.0 h1:ukwgCxwYrmACq68yiUqwIWnGY0cTPox/M94sVwToPjQ=
