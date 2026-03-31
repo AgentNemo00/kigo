@@ -12,7 +12,7 @@ import (
 	"github.com/AgentNemo00/sca-instruments/log"
 	"github.com/AgentNemo00/sca-instruments/api/router"
 	"github.com/agentnemo00/kigo/module"
-}
+)
 
 type Service struct {
 	config 			*config.Config
@@ -141,7 +141,7 @@ func (s *Service) MainServiceWorker(ctx context.Context, data notification.Notif
 						log.Ctx(ctx).Error("Error while publishing: %s", err.Error())
 						return
 					}					
-				}
+				}()
 			} else {
 				time.AfterFunc(notificationPayload.Duration, func() {
 					err := s.PublishOrder(ctx, data.From, orderPayload)
