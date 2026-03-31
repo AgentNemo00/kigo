@@ -51,7 +51,7 @@ func (c *Config) CreateModule(name string) (*Module, error) {
 	defer c.mu.Unlock()
 	module, _ := c.GetModule(name)
 	if module != nil {
-		return nil, errors.New(fmt.Errorf("A module with this name already exits"))
+		return nil, errors.New(fmt.Errorf("a module with this name already exits"))
 	}
 	newModule := Module{
 		Name: name,
