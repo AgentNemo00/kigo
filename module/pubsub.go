@@ -3,21 +3,22 @@ package module
 import (
 	"github.com/AgentNemo00/sca-instruments/pubsub"
 	"github.com/AgentNemo00/sca-instruments/pubsub/nats"
-	core "github.com/agentnemo00/kigo-core"
+	"github.com/agentnemo00/kigo-core/order"
+	"github.com/agentnemo00/kigo-core/notification"
 )
 
 type Communication struct {
-	Pub pubsub.Publisher[core.Order]
-	Sub pubsub.Subscriber[core.Notification, core.Order]
+	Pub pubsub.Publisher[order.Order]
+	Sub pubsub.Subscriber[notification.Notification, order.Order]
 	Subscription pubsub.Subscription
 }
 
 func NewCommunication(url string) (*Communication, error) {
-	pub, err := nats.PublisherWithURL[core.Order](url)
+	pub, err := nats.PublisherWithURL[order.Order](url)
 	if err != nil {
 		return nil, err
 	}
-	sub, err := nats.SubscriberWithURL[core.Notification, core.Order](url)
+	sub, err := nats.SubscriberWithURL[notification.Notification, order.Order](url)
 	if err != nil {
 		return nil, err
 	}
