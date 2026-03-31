@@ -54,9 +54,9 @@ func (c *Config) CreateModule(name string) (*Module, error) {
 		return nil, errors.New(fmt.Errorf("A module with this name already exits"))
 	}
 	newModule := Module{
-		Name: name
+		Name: name,
 	}
 	c.Modules = append(c.Modules, newModule)
-	return &newModule
+	return &newModule, nil
 }
 
