@@ -77,7 +77,7 @@ func (s *Service) REST()  {
 
 func (s *Service) MainServiceWorker(ctx context.Context, data core.Notification) { {
 	moduleObject, index := s.config.GetModule(data.From)
-	if moduleObject == nil {
+	if moduleObject == nil && data.Notification != core.NotificationReady {
 		log.Ctx(ctx).Errorf("Received notification from unknown module: %s", notificationPayload.From)
 		s.ShutdownOrder(ctx, notificationPayload.From)
 		return
@@ -87,6 +87,12 @@ func (s *Service) MainServiceWorker(ctx context.Context, data core.Notification)
 			notificationPayload, ok := data.Payload.(core.NotificationReadyPayload)
 			if !ok {
 				log.Ctx(ctx).Errorf("Received invalid payload for NotificationReady: %v", data.Payload)
+				s.ShutdownOrder(ctx, notificationPayload.From)
+				return
+			}
+			moduleObject, err := s.config.CreateModule(data.From)
+			if err != nil {
+				log.Ctx(ctx).Errorf("Could not create new module: %s", data.From)
 				s.ShutdownOrder(ctx, notificationPayload.From)
 				return
 			}
