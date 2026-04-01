@@ -4,7 +4,7 @@ services:
   KigoMainPath:
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: Containerfile
       args:
         "PRVT_KEY": "./id_rsa"
         "MAIN_PATH": "cmd/kigo/main.go"
