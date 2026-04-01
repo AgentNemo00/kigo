@@ -2,12 +2,12 @@ package main
 
 import (
 	"context"
-	"github.com/agentnemo00/kigo/service"
+	"github.com/AgentNemo00/kigo/service"
 
 	"github.com/AgentNemo00/sca-instruments/configuration"
 	"github.com/AgentNemo00/sca-instruments/containerization"
 	"github.com/AgentNemo00/sca-instruments/log"
-	"github.com/agentnemo00/kigo/config"
+	"github.com/AgentNemo00/kigo/config"
 )
 
 func main() {
@@ -21,8 +21,11 @@ func main() {
 		log.Ctx(context.Background()).Error("no modules detected")
 	}
 	ctx, cancel := context.WithCancel(context.Background())
-	c.CheckModules(ctx)
-
+	err = c.CheckModules(ctx)
+	if err != nil {
+		log.Ctx(context.Background()).Err(err)
+		return
+	}
 
 	app, err := service.NewService(c)
 	if err != nil {
@@ -31,7 +34,10 @@ func main() {
 	}
 	
 	containerization.Callback(func ()  {
-		app.Stop(ctx)
+		err := app.Stop(ctx)
+		if err != nil {
+			log.Ctx(context.Background()).Err(err)
+		}
 		cancel()
 	})
 	

@@ -2,11 +2,11 @@ package service
 
 import (
 	"context"
-	"github.com/AgentNemo00/sca-instruments/config"
+	"github.com/AgentNemo00/kigo/config"
 	"fmt"
-	"github.com/AgentNemo00/sca-instruments/nats"
 	"github.com/AgentNemo00/sca-instruments/api/router"
-	"github.com/agentnemo00/kigo/module"
+	"github.com/AgentNemo00/sca-instruments/log"
+	"github.com/AgentNemo00/kigo/module"
 )
 
 type Service struct {
@@ -17,7 +17,7 @@ type Service struct {
 }
 
 func NewService(config *config.Config) (*Service, error) {
-	communication, err := module.NewCommunication(config.Config.PubSubUrl)
+	communication, err := module.NewCommunication(config.PubSubUrl)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create communication: %w", err)
 	}
@@ -37,14 +37,22 @@ func (s *Service) Start(ctxN context.Context) error {
 	if err != nil {
 		return err
 	}
-	go s.REST()
+	go func() {
+		err := s.REST()	
+		if err != nil {
+			log.Ctx(ctx).Err(err)
+		}
+	}()
 	<-ctx.Done()
 	return ctx.Err()
 }
 
 func (s *Service) Stop(ctx context.Context) error {
 	if s.handlerRest != nil {
-		s.handlerRest.Stop(ctx)
+		err := s.handlerRest.Stop(ctx)
+		if err != nil {
+			log.Ctx(ctx).Err(err)
+		}
 	}
 	s.cancel()
 	return nil
@@ -52,10 +60,10 @@ func (s *Service) Stop(ctx context.Context) error {
 
 // just in case we have some external service pushing via rest
 func (s *Service) REST() error {
-	if s.config.Ping == false && s.config.Metrics == false && s.config.Probes == false {
+	if !s.config.Ping && !s.config.Metrics && !s.config.Probes {
 		return nil
 	}
-	s.handlerRest = router.NewHandler(s.config.Config)
+	s.handlerRest = router.NewHandler(&s.config.Config)
 	err := s.handlerRest.Build(router.Simple())
 	if err != nil {
 		return err

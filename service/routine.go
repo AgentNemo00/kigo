@@ -3,8 +3,8 @@ package service
 import (
 	"context"
 	"time"
-	"github.com/agentnemo00/kigo-core/order"
-	"github.com/agentnemo00/kigo/config"
+	"github.com/AgentNemo00/kigo-core/order"
+	"github.com/AgentNemo00/kigo/config"
 	"github.com/AgentNemo00/sca-instruments/log"
 
 )

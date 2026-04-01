@@ -2,10 +2,9 @@ package service
 
 import (
 	"context"
-	"github.com/AgentNemo00/sca-instruments/config"
-	"github.com/AgentNemo00/sca-instruments/nats"
-	"github.com/agentnemo00/kigo-core/order"
-	"github.com/agentnemo00/kigo/module"
+	"github.com/AgentNemo00/kigo/config"
+	"github.com/AgentNemo00/kigo-core/order"
+	"github.com/AgentNemo00/kigo/module"
 )
 
 type Commander struct {
@@ -23,7 +22,7 @@ func (c *Commander) Shutdown(ctx context.Context, to string) error {
 	return c.communication.Pub.Publish(ctx, to, msg)
 }
 
-func (c *Commander) Reboot(ctx context.Context, to string, moduleObj config.Module) error {
+func (c *Commander) Reboot(ctx context.Context, to string, moduleObj *config.Module) error {
 	if moduleObj.AmountOfReboots >= moduleObj.RebootsAllowed {
 		return c.Shutdown(ctx, to)
 	}

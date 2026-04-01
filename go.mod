@@ -1,10 +1,13 @@
-module github.com/agentnemo00/kigo
+module github.com/AgentNemo00/kigo
 
 go 1.26.0
 
 replace github.com/kataras/golog => github.com/kataras/golog v0.1.13
 
-require github.com/AgentNemo00/sca-instruments v0.6.2
+require (
+	github.com/AgentNemo00/kigo-core v0.3.0
+	github.com/AgentNemo00/sca-instruments v0.6.2
+)
 
 require (
 	cel.dev/expr v0.25.1 // indirect
@@ -29,7 +32,6 @@ require (
 	github.com/MicahParks/keyfunc v1.9.0 // indirect
 	github.com/Nerzal/gocloak/v13 v13.9.0 // indirect
 	github.com/Shopify/goreferrer v0.0.0-20250617153402-88c1d9a79b05 // indirect
-	github.com/agentnemo00/kigo-core v0.2.1-0.20260331144605-c143504b2901 // indirect
 	github.com/andybalholm/brotli v1.2.0 // indirect
 	github.com/aws/aws-sdk-go-v2 v1.41.5 // indirect
 	github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.7.8 // indirect
@@ -109,7 +111,6 @@ require (
 	github.com/kelseyhightower/envconfig v1.4.0 // indirect
 	github.com/klauspost/compress v1.18.5 // indirect
 	github.com/leodido/go-urn v1.4.0 // indirect
-	github.com/magefile/mage v1.17.0 // indirect
 	github.com/mailgun/raymond/v2 v2.0.48 // indirect
 	github.com/mailru/easyjson v0.9.2 // indirect
 	github.com/mattn/go-colorable v0.1.14 // indirect
@@ -140,8 +141,6 @@ require (
 	github.com/spiffe/go-spiffe/v2 v2.6.0 // indirect
 	github.com/tdewolff/minify/v2 v2.24.11 // indirect
 	github.com/tdewolff/parse/v2 v2.8.11 // indirect
-	github.com/uber/jaeger-client-go v2.30.0+incompatible // indirect
-	github.com/uber/jaeger-lib v2.4.1+incompatible // indirect
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
 	github.com/vmihailenco/msgpack/v5 v5.4.1 // indirect
 	github.com/vmihailenco/tagparser/v2 v2.0.0 // indirect

@@ -14,7 +14,7 @@ type Module struct {
 	AmountOfReboots int
 }
 type Times struct {
-	TimeReady time.Time // time it took to be ready
+	TimeReady time.Duration // Duration to be ready
 	TimeLastUpdate time.Time // time it was last updated
 }
 

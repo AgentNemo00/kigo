@@ -1,5 +1,9 @@
 package service
 
+import (
+	"context"
+)
+
 type Viewer struct {
 	SizeX int
 	SizeY int

@@ -6,14 +6,13 @@ import (
 	"sync"
 	"time"
 
-	"github.com/AgentNemo00/sca-instruments/config"
+	"github.com/AgentNemo00/kigo/config"
 	"github.com/AgentNemo00/sca-instruments/errors"
 	"github.com/AgentNemo00/sca-instruments/log"
-	"github.com/AgentNemo00/sca-instruments/nats"
 	"github.com/AgentNemo00/sca-instruments/pubsub"
-	"github.com/agentnemo00/kigo-core/notification"
-	"github.com/agentnemo00/kigo-core/order"
-	"github.com/agentnemo00/kigo/module"
+	"github.com/AgentNemo00/kigo-core/notification"
+	"github.com/AgentNemo00/kigo-core/order"
+	"github.com/AgentNemo00/kigo/module"
 )
 
 type Handler struct {
@@ -85,7 +84,10 @@ func (h *Handler) MainServiceWorker(ctx context.Context, data notification.Notif
 			notificationPayload, ok := data.Payload.(notification.NotificationReadyPayload)
 			if !ok {
 				log.Ctx(ctx).Error("Received invalid payload for NotificationReady: %v", data.Payload)
-				h.commander.Shutdown(ctx, data.From)
+				err := h.commander.Shutdown(ctx, data.From)
+				if err != nil {
+					log.Ctx(ctx).Err(err)
+				}
 				return
 			}
 			h.NotificationReady(ctx, data, notificationPayload)
@@ -93,12 +95,18 @@ func (h *Handler) MainServiceWorker(ctx context.Context, data notification.Notif
 			moduleObj, _ := h.GetModule(data.From)
 			if moduleObj == nil {
 				log.Ctx(ctx).Info("Module not found: %s", data.From)
-				h.commander.Shutdown(ctx, data.From)
+				err := h.commander.Shutdown(ctx, data.From)
+				if err != nil {
+					log.Ctx(ctx).Err(err)
+				}
 			}
 			notificationPayload, ok := data.Payload.(notification.NotificationUpdatePayload)
 			if !ok {
 				log.Ctx(ctx).Error("Received invalid payload for NotificationUpdate: %v", data.Payload)
-				h.commander.Reboot(ctx, data.From, moduleObj)
+				err := h.commander.Reboot(ctx, data.From, moduleObj)
+				if err != nil {
+					log.Ctx(ctx).Err(err)
+				}
 				return
 			}
 			h.NotificationUpdate(ctx, data, notificationPayload)
@@ -106,12 +114,18 @@ func (h *Handler) MainServiceWorker(ctx context.Context, data notification.Notif
 			moduleObj, _ := h.GetModule(data.From)
 			if moduleObj == nil {
 				log.Ctx(ctx).Info("Module not found: %s", data.From)
-				h.commander.Shutdown(ctx, data.From)
+				err := h.commander.Shutdown(ctx, data.From)
+				if err != nil {
+					log.Ctx(ctx).Err(err)
+				}
 			}
 			_, ok := data.Payload.(notification.NotificationRenderPayload)
 			if !ok {
 				log.Ctx(ctx).Error("Received invalid payload for NotificationRender: %v", data.Payload)
-				h.commander.Reboot(ctx, data.From, moduleObj)
+				err := h.commander.Reboot(ctx, data.From, moduleObj)
+				if err != nil {
+					log.Ctx(ctx).Err(err)
+				}
 				return
 			}
 			// TODO: Use a file to share UI element ref. Do some security checks
@@ -135,7 +149,7 @@ func (h *Handler) NotificationReady(ctx context.Context, data notification.Notif
 			}
 			return
 		}		
-	} 
+	}
 	moduleObj.TimeReady = payload.Duration
 	orderPayload := order.OrderStartUpPayload{
 		QueuePosition: index,
@@ -146,6 +160,9 @@ func (h *Handler) NotificationReady(ctx context.Context, data notification.Notif
 		Order: order.OrderStartUp,
 		Payload: orderPayload,
 	})
+	if err != nil {
+		log.Ctx(ctx).Err(err)
+	}
 	moduleObj.Init = true // initialized
 	if moduleObj.CallingInterval != 0 {
 		moduleObj.CallingInterval = payload.CallingInterval
@@ -165,14 +182,17 @@ func (h *Handler) NotificationUpdate(ctx context.Context, data notification.Noti
 	SizeX, SizeY, err := viewer.GetDimensions(ctx) // TODO: communicate with the UI service
 	if err != nil {
 		log.Ctx(ctx).Error("Failed to get dimensions: %v", err)
-		h.commander.Update(ctx, data.From, map[string]string{"Command": "retry"})
+		err := h.commander.Update(ctx, data.From, map[string]string{"Command": "retry"})
+		if err != nil {
+			log.Ctx(ctx).Err(err)
+		}
 		return
 	}
 	orderPayload := order.OrderRenderPayload{
 		SizeX: SizeX,
 		SizeY: SizeY,
 	}
-	durationenNeeded := time.Now().Sub(currentTime)
+	durationenNeeded := time.Since(currentTime)
 	defer func() {
     	moduleObj.TimeLastUpdate = time.Now()
 	}()

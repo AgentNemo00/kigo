@@ -7,7 +7,7 @@ import (
 	"github.com/AgentNemo00/sca-instruments/api/router"
 	"github.com/AgentNemo00/sca-instruments/errors"
 	"github.com/AgentNemo00/sca-instruments/log"
-	"github.com/agentnemo00/kigo-core/util"
+	"github.com/AgentNemo00/kigo-core/util"
 )
 
 type Config struct {
