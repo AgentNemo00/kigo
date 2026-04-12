@@ -11,11 +11,11 @@ A list of modules implemented from [this list](https://github.com/MagicMirrorOrg
 
 | Module | Implemented |
 | --- | --- |
-| Text | [ ] |
-| Time | [ ] |
-| Calendar | [ ] |
-| Mail | [ ] |
-| Weather | [ ] |
-| Notifications | [ ] |
+| Text |  |
+| Time |  |
+| Calendar |  |
+| Mail |  |
+| Weather |  |
+| Notifications |  |
 
 
