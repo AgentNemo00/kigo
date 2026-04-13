@@ -3,8 +3,8 @@ package config
 import "time"
 
 type Module struct {
+	ID   string
 	Name string
-	Path string
 	RebootsAllowed int // amount of reboots allowed before shutdown is called
 
 	Init bool // ready to use

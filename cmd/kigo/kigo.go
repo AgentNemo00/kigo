@@ -21,11 +21,6 @@ func main() {
 		log.Ctx(context.Background()).Error("no modules detected")
 	}
 	ctx, cancel := context.WithCancel(context.Background())
-	err = c.CheckModules(ctx)
-	if err != nil {
-		log.Ctx(context.Background()).Err(err)
-		return
-	}
 
 	app, err := service.NewService(c)
 	if err != nil {

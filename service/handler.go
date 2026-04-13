@@ -165,6 +165,7 @@ func (h *Handler) NotificationReady(ctx context.Context, data notification.Notif
 		log.Ctx(ctx).Err(err)
 	}
 	moduleObj.Init = true // initialized
+	moduleObj.AmountOfReboots = 0
 	if moduleObj.CallingInterval != 0 {
 		moduleObj.CallingInterval = payload.CallingInterval
 		routine := Routine{Module: moduleObj, Commander: h.commander}
