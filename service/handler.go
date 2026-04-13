@@ -32,6 +32,7 @@ func (h *Handler) Start(ctx context.Context, name string) error {
 			log.Ctx(ctx).Error("received error in message: %v", metadata.Error)
 			return
 		}
+		log.Ctx(ctx).Debug("Got message at %s from %s", metadata.Timestamp.Format("15:04:05"), data.From)
 		if data.From == "" {
 			log.Ctx(ctx).Error("no sender data in message: %v", data)
 			return
