@@ -1,13 +1,7 @@
 package config
 
 import (
-	"context"
-	"fmt"
-
 	"github.com/AgentNemo00/sca-instruments/api/router"
-	"github.com/AgentNemo00/sca-instruments/errors"
-	"github.com/AgentNemo00/sca-instruments/log"
-	"github.com/AgentNemo00/kigo-core/util"
 )
 
 type Config struct {
