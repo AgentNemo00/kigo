@@ -17,9 +17,6 @@ func main() {
 		log.Ctx(context.Background()).Err(err)
 		return
 	}
-	if len(c.Modules) == 0 {
-		log.Ctx(context.Background()).Error("no modules detected")
-	}
 	ctx, cancel := context.WithCancel(context.Background())
 
 	app, err := service.NewService(c)

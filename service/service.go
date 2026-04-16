@@ -25,7 +25,6 @@ func NewService(config *config.Config) (*Service, error) {
 		config: config,
 		handler: &Handler{
 			communication: communication,
-			modules: config.Modules,
 		},
 	}, nil
 }
@@ -33,7 +32,7 @@ func NewService(config *config.Config) (*Service, error) {
 func (s *Service) Start(ctxN context.Context) error {
 	ctx, cancel := context.WithCancel(ctxN)
 	s.cancel = cancel		
-	err := s.handler.Start(ctx, s.config.Name)	
+	err := s.handler.Start(ctx, s.config.Name, s.config.KiGoUIID)	
 	if err != nil {
 		return err
 	}

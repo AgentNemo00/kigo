@@ -6,10 +6,10 @@ import (
 
 type Config struct {
 	router.Config
+	
 	PubSubUrl string
 
-	Modules []Module
-
+	KiGoUIID string
 	// TODO: output to draw to
 }
 
@@ -23,7 +23,10 @@ func (c *Config) Default() {
 	if c.Version == "" {
 		c.Version = "1.0.0"
 	}
-	if len(c.Modules) == 0 {
-		c.Modules = nil // TODO: append welcome module
+	if c.PubSubUrl == "" {
+		c.PubSubUrl = "nats://127.0.0.1:4222"
+	}
+	if c.KiGoUIID == "" {
+		c.KiGoUIID = "kigoui://127.0.0.1:53740"
 	}
 }

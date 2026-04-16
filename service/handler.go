@@ -2,41 +2,40 @@ package service
 
 import (
 	"context"
-	"fmt"
 	"sync"
 	"time"
 
-	"github.com/AgentNemo00/kigo/config"
-	"github.com/AgentNemo00/sca-instruments/errors"
-	"github.com/AgentNemo00/sca-instruments/log"
-	"github.com/AgentNemo00/sca-instruments/pubsub"
+	errcore "github.com/AgentNemo00/kigo-core/errors"
 	"github.com/AgentNemo00/kigo-core/notification"
 	"github.com/AgentNemo00/kigo-core/order"
+	"github.com/AgentNemo00/kigo-core/update"
+	"github.com/AgentNemo00/kigo-core/information"
 	"github.com/AgentNemo00/kigo/module"
+	"github.com/AgentNemo00/sca-instruments/log"
+	"github.com/AgentNemo00/sca-instruments/pubsub"
 )
 
 type Handler struct {
 	communication 	*module.Communication
-	modules 		[]config.Module
 	commander 		*Commander
 	mu 				sync.RWMutex
+
+	modules 		[]*module.Module
+	renderTo		string
 }
 
-func (h *Handler) Start(ctx context.Context, name string) error {
+func (h *Handler) Start(ctx context.Context, name string, renderTo string) error {
 	h.commander = &Commander{
 		hostname: name,
 		communication: h.communication,
 	}
+	h.renderTo = renderTo
 	subscription, err := h.communication.Sub.Subscribe(ctx, name, func(ctx context.Context, metadata pubsub.Metadata, data *notification.Notification, responder pubsub.Responder[order.Order]) {
 		if metadata.Error != nil {
 			log.Ctx(ctx).Error("received error in message: %v", metadata.Error)
 			return
 		}
 		log.Ctx(ctx).Debug("Got message at %s from %s", metadata.Timestamp.Format("15:04:05"), data.From)
-		if data.From == "" {
-			log.Ctx(ctx).Error("no sender data in message: %v", data)
-			return
-		}
 		h.MainServiceWorker(ctx, *data)
 	})
 	if err != nil {
@@ -50,174 +49,202 @@ func (h *Handler) Stop(ctx context.Context) {
 	h.communication.Subscription.Unsubscribe(ctx)
 }
 
-func (h *Handler) GetModule(name string) (*config.Module, int) {
+func (h *Handler) GetModule(id string) (*module.Module, int) {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
 	for index, module := range h.modules {
-		if module.Name == name {
-			return &module, index+1
+		if module.ID == id {
+			return module, index+1
 		}
 	}
 	return nil, -1
 }
 
-func (h *Handler) CreateModule(name string) (*config.Module, int, error) {
+func (h *Handler) CreateModule(name string) (*module.Module, int, error) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	module, index := h.GetModule(name)
-	if module != nil {
-		return module, index, errors.New(fmt.Errorf("a module with this name already exits"))
+	newMod, err := module.NewModule(name)
+	if err != nil {
+		return nil, -1, err
 	}
-	newModule := config.Module{
-		Name: name,
-	}
-	h.modules = append(h.modules, newModule)
-	return &newModule, len(h.modules), nil
+	h.modules = append(h.modules, newMod)
+	return newMod, len(h.modules)-1, nil
 }
 
 func (h *Handler) MainServiceWorker(ctx context.Context, data notification.Notification) {
-	if data.From == "" {
-		log.Ctx(ctx).Error("Sender not defined: %v", data.Payload)
-		return
-	}
+
 	switch data.Notification {
 		case notification.NotificationReady:
 			notificationPayload, ok := data.Payload.(notification.NotificationReadyPayload)
-			if !ok {
+			if !ok && data.From != "" {
 				log.Ctx(ctx).Error("Received invalid payload for NotificationReady: %v", data.Payload)
-				err := h.commander.Shutdown(ctx, data.From)
-				if err != nil {
-					log.Ctx(ctx).Err(err)
+				if data.From != "" {
+					h.commander.Error(ctx, data.From, errcore.NotificationPayloadInvalid)
 				}
 				return
 			}
 			h.NotificationReady(ctx, data, notificationPayload)
 		case notification.NotificationUpdate:
-			moduleObj, _ := h.GetModule(data.From)
-			if moduleObj == nil {
-				log.Ctx(ctx).Info("Module not found: %s", data.From)
-				err := h.commander.Shutdown(ctx, data.From)
-				if err != nil {
-					log.Ctx(ctx).Err(err)
+			if data.From == "" {
+				log.Ctx(ctx).Error("Sender not defined: %v", data.Payload)
+				if data.To != "" {
+					h.commander.Error(ctx, data.From, errcore.KiGoIDInvalid)
 				}
+				return
 			}
 			notificationPayload, ok := data.Payload.(notification.NotificationUpdatePayload)
-			if !ok {
-				log.Ctx(ctx).Error("Received invalid payload for NotificationUpdate: %v", data.Payload)
-				err := h.commander.Reboot(ctx, data.From, moduleObj)
-				if err != nil {
-					log.Ctx(ctx).Err(err)
+			if !ok && data.From != "" {
+				log.Ctx(ctx).Error("Received invalid payload for NotificationReady: %v", data.Payload)
+				if data.From != "" {
+					h.commander.Error(ctx, data.From, errcore.NotificationPayloadInvalid)
 				}
 				return
 			}
 			h.NotificationUpdate(ctx, data, notificationPayload)
-		case notification.NotificationRender:
-			moduleObj, _ := h.GetModule(data.From)
-			if moduleObj == nil {
-				log.Ctx(ctx).Info("Module not found: %s", data.From)
-				err := h.commander.Shutdown(ctx, data.From)
-				if err != nil {
-					log.Ctx(ctx).Err(err)
-				}
-			}
-			_, ok := data.Payload.(notification.NotificationRenderPayload)
-			if !ok {
-				log.Ctx(ctx).Error("Received invalid payload for NotificationRender: %v", data.Payload)
-				err := h.commander.Reboot(ctx, data.From, moduleObj)
-				if err != nil {
-					log.Ctx(ctx).Err(err)
+		case notification.NotificationInformation:
+			if data.From == "" {
+				log.Ctx(ctx).Error("Sender not defined: %v", data.Payload)
+				if data.To != "" {
+					h.commander.Error(ctx, data.From, errcore.KiGoIDInvalid)
 				}
 				return
 			}
-			// TODO: Use a file to share UI element ref. Do some security checks
+			notificationPayload, ok := data.Payload.(notification.NotificationInformationPayload)
+			if !ok && data.From != "" {
+				log.Ctx(ctx).Error("Received invalid payload for NotificationReady: %v", data.Payload)
+				if data.From != "" {
+					h.commander.Error(ctx, data.From, errcore.NotificationPayloadInvalid)
+				}
+				return
+			}
+			h.NotificationInformation(ctx, data, notificationPayload)
+
+		case notification.NotificationRender:
+			// TODO: unsupported
 		default:
-			log.Ctx(ctx).Error("Received unknown notification: %s", data.Notification)
+			if data.From != "" {
+				h.commander.Error(ctx, data.From, errcore.NotificationTypeInvalid)
+			}
 	}
 } 
 
 func (h *Handler) NotificationReady(ctx context.Context, data notification.Notification, payload notification.NotificationReadyPayload) {
-	var err error
-	moduleObj, index := h.GetModule(data.From)
-	if moduleObj == nil {
-		log.Ctx(ctx).Info("Module not found: %s", data.From)
-		// if no name giving in the config 
-		moduleObj, index, err = h.CreateModule(data.From)
-		if err != nil {
-			log.Ctx(ctx).Error("Could not create new module: %s", data.From)
-			err := h.commander.Shutdown(ctx, data.From)
-			if err != nil {
-				log.Ctx(ctx).Err(err)
-			}
+	if data.From != "" {
+		// module already exists
+		moduleObj, _ := h.GetModule(data.From)
+		if moduleObj == nil {
+			log.Ctx(ctx).Error("Module not found: %s", data.From)
+			h.commander.Error(ctx, data.From, errcore.ModuleNotFound)
 			return
-		}		
+		}
+		moduleObj.Times.StartUpDuration = payload.Duration
+		moduleObj.Times.Heartbeat = payload.Heartbeat
+		moduleObj.Changes = payload.Changes
+		moduleObj.Ready = true
+		h.commander.StartUp(ctx, data.From, order.OrderStartUpPayload{
+			ID: moduleObj.ID,
+			NumberOfModules: len(h.modules),
+			MessageTo: order.MessageTo{
+				Notification: h.commander.hostname,
+				Render: h.renderTo,
+			},
+		})
 	}
-	moduleObj.TimeReady = payload.Duration
-	orderPayload := order.OrderStartUpPayload{
-		QueuePosition: index,
-	}
-	err = h.communication.Pub.Publish(ctx, data.From, order.Order{
-		From: h.commander.hostname,
-		To: data.From,
-		Order: order.OrderStartUp,
-		Payload: orderPayload,
-	})
+	// From empty
+	moduleObj, index, err := h.CreateModule(payload.Name)
 	if err != nil {
 		log.Ctx(ctx).Err(err)
+		// not sending anything as no sender information
+		return
 	}
-	moduleObj.Init = true // initialized
-	moduleObj.AmountOfReboots = 0
-	if moduleObj.CallingInterval != 0 {
-		moduleObj.CallingInterval = payload.CallingInterval
-		routine := Routine{Module: moduleObj, Commander: h.commander}
-		routine.Start(ctx)
-	}
+	moduleObj.Times.StartUpDuration = payload.Duration
+	moduleObj.Times.Heartbeat = payload.Heartbeat
+	moduleObj.Changes = payload.Changes
+	moduleObj.Ready = true
+	h.commander.StartUp(ctx, data.From, order.OrderStartUpPayload{
+		ID: moduleObj.ID,
+		NumberOfModules: index+1,
+		MessageTo: order.MessageTo{
+			Notification: h.commander.hostname,
+			Render: h.renderTo,
+		},
+	})
+	// TODO: create go routine for checking heartbeat
+
 }
+
 
 func (h *Handler) NotificationUpdate(ctx context.Context, data notification.Notification, payload notification.NotificationUpdatePayload) {
-	currentTime := time.Now()
-	moduleObj, _ := h.GetModule(data.From)
-	if moduleObj == nil {
-		log.Ctx(ctx).Info("Module not found: %s", data.From)
-		return
-	}
-	viewer := Viewer{SizeX: 1000, SizeY: 1000}
-	SizeX, SizeY, err := viewer.GetDimensions(ctx) // TODO: communicate with the UI service
-	if err != nil {
-		log.Ctx(ctx).Error("Failed to get dimensions: %v", err)
-		err := h.commander.Update(ctx, data.From, map[string]string{"Command": "retry"})
-		if err != nil {
-			log.Ctx(ctx).Err(err)
-		}
-		return
-	}
-	orderPayload := order.OrderRenderPayload{
-		SizeX: SizeX,
-		SizeY: SizeY,
-	}
-	durationenNeeded := time.Since(currentTime)
-	defer func() {
-    	moduleObj.TimeLastUpdate = time.Now()
-	}()
-
-	if payload.Duration == 0 {
-		go func ()  {
-			err := h.commander.Update(ctx, data.From, orderPayload)
-			if err != nil {
-				log.Ctx(ctx).Error("Error while publishing: %s", err.Error())
+	switch payload.Type {
+		case update.Config:
+			modConfig, ok := payload.Payload.(update.Module)
+			if !ok {
+				log.Ctx(ctx).Error("Received invalid payload for update.Config: %v", payload.Payload)
+				if data.From != "" {
+					h.commander.Error(ctx, data.From, errcore.NotificationPayloadInvalid)
+				}
 				return
-			}					
-		}()
-		return
-	}
-	waitingDurationen := payload.Duration - durationenNeeded
-	if waitingDurationen < 0 {
-		waitingDurationen = 0
-	}
-	time.AfterFunc(waitingDurationen, func() {
-		err := h.commander.Update(ctx, data.From, orderPayload)
-		if err != nil {
-			log.Ctx(ctx).Error("Error while publishing: %s", err.Error())
-			return
-		}
-	})
+			}
+			moduleObj, _ := h.GetModule(data.From)
+			if moduleObj == nil {
+				log.Ctx(ctx).Error("Module not found: %s", data.From)
+				h.commander.Error(ctx, data.From, errcore.ModuleNotFound)
+				return
+			}
+			moduleObj.Ready = modConfig.Ready
+			moduleObj.Changes = modConfig.Changes
+			moduleObj.TimeLastUpdate = time.Now()
+			moduleObj.Times.Heartbeat = modConfig.Heartbeat
+	default:
+		h.commander.Error(ctx, data.To, errcore.NotificationTypeInvalid)
+	}	
 }
+
+func (h *Handler) NotificationInformation(ctx context.Context, data notification.Notification, payload notification.NotificationInformationPayload) {
+		switch payload.Type {
+			case information.Modules:
+				moduleInfos := make([]information.ModuleInformation, 0, len(h.modules))
+				for _, mod := range h.modules {
+					moduleInfos = append(moduleInfos, information.ModuleInformation{
+						ID: mod.ID,
+						Name: mod.Name,
+						Changes: mod.Changes,
+						Ready: mod.Ready,
+						Heartbeat: mod.Heartbeat,
+						LastHeartbeat: mod.Times.TimeLastUpdate,
+					})
+				}
+				h.commander.Information(ctx, data.From, order.OrderInformationPayload{
+					Payload: information.ModulesPayload{
+						Modules: moduleInfos,
+					},
+				})
+			case information.Module:
+				payloadModule, ok := payload.Payload.(string)
+				if !ok {
+					log.Ctx(ctx).Error("Received invalid payload for information.Module: %v", payload.Payload)
+					h.commander.Error(ctx, data.From, errcore.NotificationPayloadInvalid)
+					return
+				}
+				moduleObj, _ := h.GetModule(payloadModule)
+				if moduleObj == nil {
+					log.Ctx(ctx).Error("Module not found: %s", payloadModule)
+					h.commander.Error(ctx, data.From, errcore.ModuleNotFound)
+					return
+				}
+				h.commander.Information(ctx, data.From, order.OrderInformationPayload{
+					Payload: information.ModuleInformation{
+						ID: moduleObj.ID,
+						Name: moduleObj.Name,
+						Changes: moduleObj.Changes,
+						Ready: moduleObj.Ready,
+						Heartbeat: moduleObj.Heartbeat,
+						LastHeartbeat: moduleObj.Times.TimeLastUpdate,
+					},
+				})
+	
+	default:
+		h.commander.Error(ctx, data.To, errcore.NotificationTypeInvalid)
+	}
+}
+

@@ -2,7 +2,8 @@ package service
 
 import (
 	"context"
-	"github.com/AgentNemo00/kigo/config"
+	"fmt"
+
 	"github.com/AgentNemo00/kigo-core/order"
 	"github.com/AgentNemo00/kigo/module"
 )
@@ -22,25 +23,35 @@ func (c *Commander) Shutdown(ctx context.Context, to string) error {
 	return c.communication.Pub.Publish(ctx, to, msg)
 }
 
-func (c *Commander) Reboot(ctx context.Context, to string, moduleObj *config.Module) error {
-	if moduleObj.AmountOfReboots >= moduleObj.RebootsAllowed {
-		return c.Shutdown(ctx, to)
-	}
+func (c *Commander) StartUp(ctx context.Context, to string, payload order.OrderStartUpPayload) error {
 	msg := order.Order{
 		From: c.hostname,
-		To: to,	
-		Order: order.OrderReboot,
-		Payload: nil,
+		To: to,
+		Order: order.OrderStartUp,
+		Payload: payload,
 	}
 	return c.communication.Pub.Publish(ctx, to, msg)
 }
 
-func (c *Commander) Update(ctx context.Context, to string, payload any) error {
+
+func (c *Commander) Information(ctx context.Context, to string, payload any) error {
 	msg := order.Order{
 		From: c.hostname,
 		To: to,	
-		Order: order.OrderUpdate,
+		Order: order.OrderInformation,
 		Payload: payload,
+	}
+	return c.communication.Pub.Publish(ctx, to, msg)
+}
+
+func (c *Commander) Error(ctx context.Context, to string, err int) error {
+	msg := order.Order{
+		From: c.hostname,
+		To: to,	
+		Order: order.OrderError,
+		Payload: order.OrderErrorPayload{
+			Message: fmt.Sprintf("%d", err),
+		},
 	}
 	return c.communication.Pub.Publish(ctx, to, msg)
 }
