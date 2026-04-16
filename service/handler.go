@@ -137,10 +137,7 @@ func (h *Handler) NotificationReady(ctx context.Context, data notification.Notif
 			h.commander.Error(ctx, data.From, errcore.ModuleNotFound)
 			return
 		}
-		moduleObj.Times.StartUpDuration = payload.Duration
-		moduleObj.Times.Heartbeat = payload.Heartbeat
-		moduleObj.Changes = payload.Changes
-		moduleObj.Ready = true
+		h.moduleSetReady(moduleObj, payload.Duration, payload.Heartbeat, payload.Changes)
 		h.commander.StartUp(ctx, data.From, order.OrderStartUpPayload{
 			ID: moduleObj.ID,
 			NumberOfModules: len(h.modules),
@@ -157,10 +154,7 @@ func (h *Handler) NotificationReady(ctx context.Context, data notification.Notif
 		// not sending anything as no sender information
 		return
 	}
-	moduleObj.Times.StartUpDuration = payload.Duration
-	moduleObj.Times.Heartbeat = payload.Heartbeat
-	moduleObj.Changes = payload.Changes
-	moduleObj.Ready = true
+	h.moduleSetReady(moduleObj, payload.Duration, payload.Heartbeat, payload.Changes)
 	h.commander.StartUp(ctx, data.From, order.OrderStartUpPayload{
 		ID: moduleObj.ID,
 		NumberOfModules: index+1,
@@ -173,6 +167,12 @@ func (h *Handler) NotificationReady(ctx context.Context, data notification.Notif
 
 }
 
+func (h *Handler) moduleSetReady (moduleObj *module.Module, startUpDuration time.Duration, heartbeat time.Duration, changes []string) {
+	moduleObj.Times.StartUpDuration = startUpDuration
+	moduleObj.Times.Heartbeat = heartbeat
+	moduleObj.Changes = changes
+	moduleObj.Ready = true
+}
 
 func (h *Handler) NotificationUpdate(ctx context.Context, data notification.Notification, payload notification.NotificationUpdatePayload) {
 	switch payload.Type {
