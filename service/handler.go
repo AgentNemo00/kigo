@@ -10,14 +10,14 @@ import (
 	"github.com/AgentNemo00/kigo-core/order"
 	"github.com/AgentNemo00/kigo-core/update"
 	"github.com/AgentNemo00/kigo-core/information"
-	"github.com/AgentNemo00/kigo/module"
 	"github.com/AgentNemo00/sca-instruments/log"
 	"github.com/AgentNemo00/sca-instruments/pubsub"
+	"github.com/AgentNemo00/kigo/module"
 )
 
 type Handler struct {
 	communication 	*module.Communication
-	commander 		*Commander
+	commander 		*module.Commander
 	mu 				sync.RWMutex
 
 	modules 		[]*module.Module
@@ -25,10 +25,7 @@ type Handler struct {
 }
 
 func (h *Handler) Start(ctx context.Context, name string, renderTo string) error {
-	h.commander = &Commander{
-		hostname: name,
-		communication: h.communication,
-	}
+	h.commander = module.NewCommander(name, h.communication)
 	h.renderTo = renderTo
 	subscription, err := h.communication.Sub.Subscribe(ctx, name, func(ctx context.Context, metadata pubsub.Metadata, data *notification.Notification, responder pubsub.Responder[order.Order]) {
 		if metadata.Error != nil {
@@ -72,7 +69,6 @@ func (h *Handler) CreateModule(name string) (*module.Module, int, error) {
 }
 
 func (h *Handler) MainServiceWorker(ctx context.Context, data notification.Notification) {
-
 	switch data.Notification {
 		case notification.NotificationReady:
 			notificationPayload, ok := data.Payload.(notification.NotificationReadyPayload)
@@ -121,6 +117,7 @@ func (h *Handler) MainServiceWorker(ctx context.Context, data notification.Notif
 
 		case notification.NotificationRender:
 			// TODO: unsupported
+			fallthrough
 		default:
 			if data.From != "" {
 				h.commander.Error(ctx, data.From, errcore.NotificationTypeInvalid)
@@ -142,7 +139,7 @@ func (h *Handler) NotificationReady(ctx context.Context, data notification.Notif
 			ID: moduleObj.ID,
 			NumberOfModules: len(h.modules),
 			MessageTo: order.MessageTo{
-				Notification: h.commander.hostname,
+				Notification: h.commander.Name(),
 				Render: h.renderTo,
 			},
 		})
@@ -159,10 +156,11 @@ func (h *Handler) NotificationReady(ctx context.Context, data notification.Notif
 		ID: moduleObj.ID,
 		NumberOfModules: index+1,
 		MessageTo: order.MessageTo{
-			Notification: h.commander.hostname,
+			Notification: h.commander.Name(),
 			Render: h.renderTo,
 		},
 	})
+	
 	// TODO: create go routine for checking heartbeat
 
 }

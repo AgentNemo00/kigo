@@ -1,17 +1,27 @@
-package service
+package module
 
 import (
 	"context"
 	"fmt"
 
 	"github.com/AgentNemo00/kigo-core/order"
-	"github.com/AgentNemo00/kigo/module"
 	"github.com/AgentNemo00/sca-instruments/log"
 )
 
 type Commander struct {
 	hostname 		string
-	communication 	*module.Communication
+	communication 	*Communication
+}
+
+func NewCommander(hostname string, communication *Communication) *Commander {
+	return &Commander{
+		hostname: hostname,
+		communication: communication,
+	}
+}
+
+func (c *Commander) Name() string {
+	return c.hostname
 }
 
 func (c *Commander) Shutdown(ctx context.Context, to string) {
