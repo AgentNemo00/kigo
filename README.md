@@ -16,6 +16,9 @@ I will use [GoGPU](https://github.com/gogpu/ui) as soon at is available for the 
 
 ![Architecture](assets/architecture.png)
 
+`KiGo` is responsible for handling the module lifecycle and `KiGoUI` for rendering what the modules want to draw. For more informations about the module lifecycle checkout
+[KiGoCore](https://github.com/AgentNemo00/kigo-core).
+
 ## Roadmap
 
 ### Phase 0
