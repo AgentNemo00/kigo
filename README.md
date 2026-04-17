@@ -21,32 +21,32 @@ I will use [GoGPU](https://github.com/gogpu/ui) as soon at is available for the 
 
 ## Roadmap
 
-### Phase 0
+### Phase 0 - Planing Phase
 
 - [ ] Define architecture
 - [ ] Define communication shema via pubsub
 - [ ] Define communication via IPC
 
-### Phase 1
+### Phase 1 Implement communication foundation
 
 - [ ] Implement communication between KiGoUI and KiGo
 - [ ] Implement communication between KiGo and modules via pubsub
 
-### Phase 2
+### Phase 2 Implement modules showcase 
 
 - [ ] Implement modules render roundtrip
 - [ ] Implement basic modules
 
-### Phase 3
+### Phase 3 Implement shipping strategy
 
 - [ ] Implement deployment architecture, including KiGo, KiGoUI and the pubsub server
 - [ ] Implement basic modules
 
-### Phase 4
+### Phase 4 Implement helper tool
 
 - [ ] Implement KiGoMa on device
 
-### Phase 5
+### Phase 5 Implement full third party solutions 
 
 - [ ] Implement KigoMa on remote
 - [ ] Implement remote modules
