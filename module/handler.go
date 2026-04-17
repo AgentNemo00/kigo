@@ -1,4 +1,4 @@
-package service
+package module
 
 import (
 	"context"
@@ -11,23 +11,34 @@ import (
 	"github.com/AgentNemo00/kigo-core/update"
 	"github.com/AgentNemo00/kigo-core/information"
 	"github.com/AgentNemo00/sca-instruments/log"
-	"github.com/AgentNemo00/sca-instruments/pubsub"
-	"github.com/AgentNemo00/kigo/module"
+	ps "github.com/AgentNemo00/sca-instruments/pubsub"
+	"github.com/AgentNemo00/kigo/pubsub"
 )
 
 type Handler struct {
-	communication 	*module.Communication
-	commander 		*module.Commander
+	communication 	*pubsub.Communication
+	commander 		*Commander
 	mu 				sync.RWMutex
+    ctx 			context.Context
+	
+	lastHeartbeatCheck 			time.Time
 
-	modules 		[]*module.Module
+	modules 		[]*Module
 	renderTo		string
 }
 
+func NewHandler(communication *pubsub.Communication) *Handler {
+	return &Handler{
+		communication: communication,
+		modules: make([]*Module, 0),
+	}
+}
+
 func (h *Handler) Start(ctx context.Context, name string, renderTo string) error {
-	h.commander = module.NewCommander(name, h.communication)
+	h.commander = NewCommander(name, h.communication)
 	h.renderTo = renderTo
-	subscription, err := h.communication.Sub.Subscribe(ctx, name, func(ctx context.Context, metadata pubsub.Metadata, data *notification.Notification, responder pubsub.Responder[order.Order]) {
+	subscription, err := h.communication.Sub.Subscribe(ctx, name, func(ctx context.Context, metadata ps.Metadata, data *notification.Notification, responder ps.Responder[order.Order]) {
+		defer h.CheckHeartbeats(ctx)
 		if metadata.Error != nil {
 			log.Ctx(ctx).Error("received error in message: %v", metadata.Error)
 			return
@@ -39,6 +50,8 @@ func (h *Handler) Start(ctx context.Context, name string, renderTo string) error
 		return err
 	}
 	h.communication.Subscription = subscription
+	h.ctx = ctx
+	h.lastHeartbeatCheck = time.Now()
 	return nil
 }
 
@@ -46,7 +59,7 @@ func (h *Handler) Stop(ctx context.Context) {
 	h.communication.Subscription.Unsubscribe(ctx)
 }
 
-func (h *Handler) GetModule(id string) (*module.Module, int) {
+func (h *Handler) GetModule(id string) (*Module, int) {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
 	for index, module := range h.modules {
@@ -57,15 +70,26 @@ func (h *Handler) GetModule(id string) (*module.Module, int) {
 	return nil, -1
 }
 
-func (h *Handler) CreateModule(name string) (*module.Module, int, error) {
+func (h *Handler) CreateModule(name string) (*Module, int, error) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	newMod, err := module.NewModule(name)
+	newMod, err := NewModule(name)
 	if err != nil {
 		return nil, -1, err
 	}
 	h.modules = append(h.modules, newMod)
 	return newMod, len(h.modules)-1, nil
+}
+
+func (h *Handler) DeleteModule(mod *Module) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	for i, m := range h.modules {
+		if m.ID == mod.ID {
+			h.modules = append(h.modules[:i], h.modules[i+1:]...)
+			break
+		}
+	}
 }
 
 func (h *Handler) MainServiceWorker(ctx context.Context, data notification.Notification) {
@@ -160,12 +184,31 @@ func (h *Handler) NotificationReady(ctx context.Context, data notification.Notif
 			Render: h.renderTo,
 		},
 	})
-	
-	// TODO: create go routine for checking heartbeat
-
 }
 
-func (h *Handler) moduleSetReady (moduleObj *module.Module, startUpDuration time.Duration, heartbeat time.Duration, changes []string) {
+// check if any module is not responsive and delete it, then send shutdown command to it
+func (h *Handler) CheckHeartbeats(ctx context.Context) {
+	// Do not need to check more often than every 16ms (60fps)
+	if h.lastHeartbeatCheck.Add(time.Millisecond*16).Before(time.Now()) {
+		return
+	}
+	toDelete := make([]*Module, 0)
+	for _, mod := range h.modules {
+		if !mod.LifecycleOver() {
+			continue
+		}
+		toDelete = append(toDelete, mod)
+	}
+	for _, mod := range toDelete {
+		log.Ctx(h.ctx).Info("Module %s is not responsive, deleting it", mod.Name)
+		h.DeleteModule(mod)
+		h.commander.Shutdown(ctx, mod.ID)
+	}
+	h.lastHeartbeatCheck = time.Now()
+}
+
+// Set module ready and update its information
+func (h *Handler) moduleSetReady (moduleObj *Module, startUpDuration time.Duration, heartbeat time.Duration, changes []string) {
 	moduleObj.Times.StartUpDuration = startUpDuration
 	moduleObj.Times.Heartbeat = heartbeat
 	moduleObj.Changes = changes

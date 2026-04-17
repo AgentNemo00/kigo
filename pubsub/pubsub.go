@@ -1,4 +1,4 @@
-package module
+package pubsub
 
 import (
 	"github.com/AgentNemo00/sca-instruments/pubsub"

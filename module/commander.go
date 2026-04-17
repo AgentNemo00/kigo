@@ -6,14 +6,15 @@ import (
 
 	"github.com/AgentNemo00/kigo-core/order"
 	"github.com/AgentNemo00/sca-instruments/log"
+	"github.com/AgentNemo00/kigo/pubsub"
 )
 
 type Commander struct {
 	hostname 		string
-	communication 	*Communication
+	communication 	*pubsub.Communication
 }
 
-func NewCommander(hostname string, communication *Communication) *Commander {
+func NewCommander(hostname string, communication *pubsub.Communication) *Commander {
 	return &Commander{
 		hostname: hostname,
 		communication: communication,

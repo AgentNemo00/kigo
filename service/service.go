@@ -7,25 +7,24 @@ import (
 	"github.com/AgentNemo00/sca-instruments/api/router"
 	"github.com/AgentNemo00/sca-instruments/log"
 	"github.com/AgentNemo00/kigo/module"
+	"github.com/AgentNemo00/kigo/pubsub"
 )
 
 type Service struct {
 	config 			*config.Config
 	handlerRest 	*router.Handler
-	handler 		*Handler
+	handler 		*module.Handler
 	cancel 			context.CancelFunc
 }
 
 func NewService(config *config.Config) (*Service, error) {
-	communication, err := module.NewCommunication(config.PubSubUrl)
+	communication, err := pubsub.NewCommunication(config.PubSubUrl)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create communication: %w", err)
 	}
 	return &Service{
 		config: config,
-		handler: &Handler{
-			communication: communication,
-		},
+		handler: module.NewHandler(communication),
 	}, nil
 }
 

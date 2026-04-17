@@ -10,7 +10,6 @@ type Config struct {
 	PubSubUrl string
 
 	KiGoUIID string
-	// TODO: output to draw to
 }
 
 func (c *Config) Default() {

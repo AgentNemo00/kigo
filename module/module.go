@@ -39,3 +39,7 @@ func NewModule(name string) (*Module, error) {
 		},
 	}, nil
 }
+
+func (m *Module) LifecycleOver() bool {
+	return m.TimeLastUpdate.Add(m.Heartbeat).Before(time.Now())
+}
