@@ -17,31 +17,32 @@ import (
 )
 
 type Handler struct {
-	communication 	*pubsub.Communication
-	commander 		*Commander
-	mu 				sync.RWMutex
-    ctx 			context.Context
+	communication 		*pubsub.Communication
+	commander 			*Commander
+	mu 					sync.RWMutex
+    ctx 				context.Context
 	
-	lastHeartbeatCheck 			time.Time
-
-	modules 		[]*Module
-	renderTo		string
+	lastHeartbeatCheck 	time.Time
+	modules 			[]*Module
+	config 				*Config
 }
 
-func NewHandler(name string, renderTo string, pubsubURL string) (*Handler, error) {
-	communication, err := pubsub.NewCommunication(pubsubURL)
+func NewHandler(config *Config) (*Handler, error) {
+	communication, err := pubsub.NewCommunication(config.PubSubURL)
 	if err != nil {
 		return nil, err
 	}
 	return &Handler{
 		communication: communication,
 		modules: make([]*Module, 0),
-		commander: NewCommander(name, communication),
-		renderTo: renderTo,
+		commander: NewCommander(config.Name, communication),
+		config: config,
 	}, nil
 }
 
 func (h *Handler) Start(ctx context.Context) error {
+	h.ctx = ctx
+	h.lastHeartbeatCheck = time.Now()
 	subscription, err := h.communication.Sub.Subscribe(ctx, h.commander.Name(), func(ctx context.Context, metadata ps.Metadata, data *notification.Notification, responder ps.Responder[order.Order]) {
 		defer h.CheckHeartbeats(ctx)
 		if metadata.Error != nil {
@@ -55,8 +56,6 @@ func (h *Handler) Start(ctx context.Context) error {
 		return err
 	}
 	h.communication.Subscription = subscription
-	h.ctx = ctx
-	h.lastHeartbeatCheck = time.Now()
 	return nil
 }
 
@@ -163,15 +162,7 @@ func (h *Handler) NotificationReady(ctx context.Context, data notification.Notif
 			h.commander.Error(ctx, data.From, errcore.ModuleNotFound)
 			return
 		}
-		h.moduleSetReady(moduleObj, payload.Duration, payload.Heartbeat, payload.Changes)
-		h.commander.StartUp(ctx, data.From, order.OrderStartUpPayload{
-			ID: moduleObj.ID,
-			NumberOfModules: len(h.modules),
-			MessageTo: order.MessageTo{
-				Notification: h.commander.Name(),
-				Render: h.renderTo,
-			},
-		})
+		h.moduleSetReady(ctx, moduleObj, payload.Duration, payload.Heartbeat, payload.Changes, len(h.modules))
 	}
 	// From empty
 	moduleObj, index, err := h.CreateModule(payload.Name)
@@ -180,15 +171,7 @@ func (h *Handler) NotificationReady(ctx context.Context, data notification.Notif
 		// not sending anything as no sender information
 		return
 	}
-	h.moduleSetReady(moduleObj, payload.Duration, payload.Heartbeat, payload.Changes)
-	h.commander.StartUp(ctx, data.From, order.OrderStartUpPayload{
-		ID: moduleObj.ID,
-		NumberOfModules: index+1,
-		MessageTo: order.MessageTo{
-			Notification: h.commander.Name(),
-			Render: h.renderTo,
-		},
-	})
+	h.moduleSetReady(ctx, moduleObj, payload.Duration, payload.Heartbeat, payload.Changes, index+1)
 }
 
 // check if any module is not responsive and delete it, then send shutdown command to it
@@ -213,11 +196,22 @@ func (h *Handler) CheckHeartbeats(ctx context.Context) {
 }
 
 // Set module ready and update its information
-func (h *Handler) moduleSetReady (moduleObj *Module, startUpDuration time.Duration, heartbeat time.Duration, changes []string) {
+func (h *Handler) moduleSetReady (ctx context.Context, moduleObj *Module, startUpDuration time.Duration, heartbeat time.Duration, changes []string, length int) {
 	moduleObj.Times.StartUpDuration = startUpDuration
 	moduleObj.Times.Heartbeat = heartbeat
 	moduleObj.Changes = changes
 	moduleObj.Ready = true
+	h.commander.StartUp(ctx, moduleObj.ID, order.OrderStartUpPayload{
+	ID: moduleObj.ID,
+	NumberOfModules: length,
+	MessageTo: order.MessageTo{
+		Notification: h.commander.Name(),
+		Render: h.config.RenderTo,
+	},
+	UIconfiguration: order.UIConfiguration{
+
+	},
+	})
 }
 
 func (h *Handler) NotificationUpdate(ctx context.Context, data notification.Notification, payload notification.NotificationUpdatePayload) {

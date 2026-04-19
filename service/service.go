@@ -2,6 +2,8 @@ package service
 
 import (
 	"context"
+
+	"github.com/AgentNemo00/kigo-core/order"
 	"github.com/AgentNemo00/kigo/config"
 	"github.com/AgentNemo00/kigo/module"
 	"github.com/AgentNemo00/sca-instruments/api/router"
@@ -16,7 +18,20 @@ type Service struct {
 }
 
 func NewService(config *config.Config) (*Service, error) {
-	handler, err := module.NewHandler(config.Name, config.KiGoUI, config.PubSubUrl)
+	// TODO: start first the UI and get width and height
+
+	handler, err := module.NewHandler(&module.Config{
+		Name: config.Name,
+		PubSubURL: config.PubSubUrl,
+		RenderTo: config.KiGoUI,
+		UIConfiguration: order.UIConfiguration{
+			ScreenWidth: 0, // TODO: Get from KiGOUI
+			ScreenHeight: 0, // TODO: Get from KiGOUI
+			SupportedFormats: config.SupportedFormats,
+			SupportedChannels: config.SupportedChannels,
+			FPS: config.SupportedFPS,
+		},
+	})
 	if err != nil {
 		return nil, err
 	}
