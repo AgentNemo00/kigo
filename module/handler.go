@@ -6,13 +6,14 @@ import (
 	"time"
 
 	errcore "github.com/AgentNemo00/kigo-core/errors"
+	"github.com/AgentNemo00/kigo-core/information"
+	"github.com/AgentNemo00/kigo-core/inquiry"
 	"github.com/AgentNemo00/kigo-core/notification"
 	"github.com/AgentNemo00/kigo-core/order"
 	"github.com/AgentNemo00/kigo-core/update"
-	"github.com/AgentNemo00/kigo-core/information"
+	"github.com/AgentNemo00/kigo/pubsub"
 	"github.com/AgentNemo00/sca-instruments/log"
 	ps "github.com/AgentNemo00/sca-instruments/pubsub"
-	"github.com/AgentNemo00/kigo/pubsub"
 )
 
 type Handler struct {
@@ -121,7 +122,7 @@ func (h *Handler) MainServiceWorker(ctx context.Context, data notification.Notif
 				return
 			}
 			h.NotificationUpdate(ctx, data, notificationPayload)
-		case notification.NotificationInformation:
+		case inquiry.InquiryInformation:
 			if data.From == "" {
 				log.Ctx(ctx).Error("Sender not defined: %v", data.Payload)
 				if data.To != "" {
@@ -129,7 +130,7 @@ func (h *Handler) MainServiceWorker(ctx context.Context, data notification.Notif
 				}
 				return
 			}
-			notificationPayload, ok := data.Payload.(notification.NotificationInformationPayload)
+			notificationPayload, ok := data.Payload.(inquiry.InquiryInformationPayload)
 			if !ok && data.From != "" {
 				log.Ctx(ctx).Error("Received invalid payload for NotificationReady: %v", data.Payload)
 				if data.From != "" {
@@ -139,7 +140,7 @@ func (h *Handler) MainServiceWorker(ctx context.Context, data notification.Notif
 			}
 			h.NotificationInformation(ctx, data, notificationPayload)
 
-		case notification.NotificationRender:
+		case inquiry.InquiryRender:
 			// TODO: unsupported
 			fallthrough
 		default:
@@ -241,7 +242,7 @@ func (h *Handler) NotificationUpdate(ctx context.Context, data notification.Noti
 	}	
 }
 
-func (h *Handler) NotificationInformation(ctx context.Context, data notification.Notification, payload notification.NotificationInformationPayload) {
+func (h *Handler) NotificationInformation(ctx context.Context, data notification.Notification, payload inquiry.InquiryInformationPayload) {
 		switch payload.Type {
 			case information.Modules:
 				moduleInfos := make([]information.ModuleInformation, 0, len(h.modules))

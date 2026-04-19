@@ -23,8 +23,8 @@ I will use [GoGPU](https://github.com/gogpu/ui) as soon at is available for the 
 
 ### Phase 0 - Planing Phase
 
-- [ ] Define architecture
-- [ ] Define communication shema via pubsub
+- [X] Define architecture
+- [X] Define communication shema via pubsub
 - [ ] Define communication via IPC
 
 ### Phase 1 Implement communication foundation
