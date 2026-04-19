@@ -8,8 +8,7 @@ type Config struct {
 	router.Config
 	
 	PubSubUrl string
-
-	KiGoUIID string
+	KiGoUI string
 }
 
 func (c *Config) Default() {
@@ -17,7 +16,7 @@ func (c *Config) Default() {
 		c.Port = 10001
 	}
 	if c.Name == "" {
-		c.Name = "KigoMainService"
+		c.Name = "KiGo"
 	}
 	if c.Version == "" {
 		c.Version = "1.0.0"
@@ -25,7 +24,7 @@ func (c *Config) Default() {
 	if c.PubSubUrl == "" {
 		c.PubSubUrl = "nats://127.0.0.1:4222"
 	}
-	if c.KiGoUIID == "" {
-		c.KiGoUIID = "kigoui://127.0.0.1:53740"
+	if c.KiGoUI == "" {
+		c.KiGoUI = "KiGoUI"
 	}
 }

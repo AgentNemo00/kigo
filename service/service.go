@@ -3,35 +3,33 @@ package service
 import (
 	"context"
 	"github.com/AgentNemo00/kigo/config"
-	"fmt"
+	"github.com/AgentNemo00/kigo/module"
 	"github.com/AgentNemo00/sca-instruments/api/router"
 	"github.com/AgentNemo00/sca-instruments/log"
-	"github.com/AgentNemo00/kigo/module"
-	"github.com/AgentNemo00/kigo/pubsub"
 )
 
 type Service struct {
 	config 			*config.Config
 	handlerRest 	*router.Handler
-	handler 		*module.Handler
+	handlerModule 	*module.Handler
 	cancel 			context.CancelFunc
 }
 
 func NewService(config *config.Config) (*Service, error) {
-	communication, err := pubsub.NewCommunication(config.PubSubUrl)
+	handler, err := module.NewHandler(config.Name, config.KiGoUI, config.PubSubUrl)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create communication: %w", err)
+		return nil, err
 	}
 	return &Service{
 		config: config,
-		handler: module.NewHandler(communication),
+		handlerModule: handler,
 	}, nil
 }
 
 func (s *Service) Start(ctxN context.Context) error {
 	ctx, cancel := context.WithCancel(ctxN)
 	s.cancel = cancel		
-	err := s.handler.Start(ctx, s.config.Name, s.config.KiGoUIID)	
+	err := s.handlerModule.Start(ctx)	
 	if err != nil {
 		return err
 	}

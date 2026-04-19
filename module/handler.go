@@ -28,17 +28,21 @@ type Handler struct {
 	renderTo		string
 }
 
-func NewHandler(communication *pubsub.Communication) *Handler {
+func NewHandler(name string, renderTo string, pubsubURL string) (*Handler, error) {
+	communication, err := pubsub.NewCommunication(pubsubURL)
+	if err != nil {
+		return nil, err
+	}
 	return &Handler{
 		communication: communication,
 		modules: make([]*Module, 0),
-	}
+		commander: NewCommander(name, communication),
+		renderTo: renderTo,
+	}, nil
 }
 
-func (h *Handler) Start(ctx context.Context, name string, renderTo string) error {
-	h.commander = NewCommander(name, h.communication)
-	h.renderTo = renderTo
-	subscription, err := h.communication.Sub.Subscribe(ctx, name, func(ctx context.Context, metadata ps.Metadata, data *notification.Notification, responder ps.Responder[order.Order]) {
+func (h *Handler) Start(ctx context.Context) error {
+	subscription, err := h.communication.Sub.Subscribe(ctx, h.commander.Name(), func(ctx context.Context, metadata ps.Metadata, data *notification.Notification, responder ps.Responder[order.Order]) {
 		defer h.CheckHeartbeats(ctx)
 		if metadata.Error != nil {
 			log.Ctx(ctx).Error("received error in message: %v", metadata.Error)
