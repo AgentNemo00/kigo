@@ -25,12 +25,12 @@ I will use [GoGPU](https://github.com/gogpu/ui) as soon at is available for the 
 
 - [X] Define architecture
 - [X] Define communication shema via pubsub
-- [ ] Define communication via IPC
+- [X] Define communication via IPC
 
 ### Phase 1 Implement communication foundation
 
 - [ ] Implement communication between KiGoUI and KiGo
-- [ ] Implement communication between KiGo and modules via pubsub
+- [X] Implement communication between KiGo and modules via pubsub
 
 ### Phase 2 Implement modules showcase 
 
