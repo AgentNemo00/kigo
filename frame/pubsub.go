@@ -9,9 +9,6 @@ import (
 	"github.com/AgentNemo00/sca-instruments/pubsub/nats"
 )
 
-//type frame []byte
-//type ack bool
-
 
 type PubSub struct {
 	sub pubsub.Subscriber[[]byte, bool]
