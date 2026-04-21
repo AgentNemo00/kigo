@@ -24,7 +24,7 @@ func NewIPC(path string) (*IPC, error) {
 }
 
 func (i *IPC) Open(ctx context.Context, name string, frameSize int) (*Frame, error) {
-	rb, err := ringbuffer.NewRingBuffer(path.Join(i.path, name), frameSize, true)
+	rb, err := ringbuffer.NewRingBuffer(path.Join(i.path, name), frameSize+8, true)
     if err != nil {
         return nil, err
     }
