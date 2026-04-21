@@ -235,6 +235,20 @@ func (h *Handler) NotificationUpdate(ctx context.Context, data notification.Noti
 			moduleObj.Changes = modConfig.Changes
 			moduleObj.TimeLastUpdate = time.Now()
 			moduleObj.Times.Heartbeat = modConfig.Heartbeat
+		case update.Heartbeat:
+			modName, ok := payload.Payload.(string)
+			if !ok {
+				log.Ctx(ctx).Error("Received invalid payload for update.Config: %v", payload.Payload)
+				if data.From != "" {
+					h.commander.Error(ctx, data.From, errcore.NotificationPayloadInvalid)
+				}
+				return
+			}
+			if modName != data.From {
+				log.Ctx(ctx).Warn("%s is beatting heart for a different module: %s", data.From, modName)
+			}
+			moduleObj, _ := h.GetModule(modName)
+			moduleObj.Times.TimeLastUpdate = time.Now()
 	default:
 		h.commander.Error(ctx, data.To, errcore.NotificationTypeInvalid)
 	}	
