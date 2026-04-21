@@ -42,20 +42,20 @@ func (h *Handler) Start(ctx context.Context) error {
 		}
 		log.Ctx(ctx).Debug("Got message at %s from %s", metadata.Timestamp.Format("15:04:05"), data.From)
 		switch((*data).Notification) {
-		case inquiry.InquiryRender:
-			// TODO handshake
-			notificationPayload, ok := data.Payload.(inquiry.InquiryRenderPayload)
-			if !ok && data.From != "" {
-				log.Ctx(ctx).Error("Received invalid payload for NotificationReady: %v", data.Payload)
-				if data.From != "" {
-					h.Error(ctx, data.From, errcore.NotificationPayloadInvalid)
+			case inquiry.InquiryRender:
+				// TODO handshake
+				notificationPayload, ok := data.Payload.(inquiry.InquiryRenderPayload)
+				if !ok && data.From != "" {
+					log.Ctx(ctx).Error("Received invalid payload for NotificationReady: %v", data.Payload)
+					if data.From != "" {
+						h.Error(ctx, data.From, errcore.NotificationPayloadInvalid)
+					}
+					return
 				}
-				return
-			}
-			// TODO: check if inquiried methods and channel are conform with configuration
+				// TODO: check if inquiried methods and channel are conform with configuration
 
-		default:
-			h.Error(ctx, data.From, errcore.NotificationTypeInvalid)
+			default:
+				h.Error(ctx, data.From, errcore.NotificationTypeInvalid)
 		}
 	})
 	if err != nil {
