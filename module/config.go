@@ -7,4 +7,5 @@ type Config struct {
 	PubSubURL 		string
 	RenderTo   		string
 	UIConfiguration order.UIConfiguration
+	Database 		string
 }

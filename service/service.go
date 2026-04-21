@@ -31,6 +31,7 @@ func NewService(config *config.Config) (*Service, error) {
 			SupportedChannels: config.SupportedChannels,
 			FPS: config.SupportedFPS,
 		},
+		Database: config.Database,
 	})
 	if err != nil {
 		return nil, err

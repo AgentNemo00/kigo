@@ -28,6 +28,7 @@ type Handler struct {
 }
 
 func NewHandler(config *Config) (*Handler, error) {
+	// TODO: add database initiation
 	communication, err := pubsub.NewCommunication(config.PubSubURL)
 	if err != nil {
 		return nil, err
@@ -36,6 +37,7 @@ func NewHandler(config *Config) (*Handler, error) {
 		communication: communication,
 		modules: make([]*Module, 0),
 		commander: NewCommander(config.Name, communication),
+		lastHeartbeatCheck: time.Now(),
 		config: config,
 	}, nil
 }
@@ -44,6 +46,7 @@ func (h *Handler) Start(ctx context.Context) error {
 	h.ctx = ctx
 	h.lastHeartbeatCheck = time.Now()
 	subscription, err := h.communication.Sub.Subscribe(ctx, h.commander.Name(), func(ctx context.Context, metadata ps.Metadata, data *notification.Notification, responder ps.Responder[order.Order]) {
+		// TODO: persist after every call
 		defer h.CheckHeartbeats(ctx)
 		if metadata.Error != nil {
 			log.Ctx(ctx).Error("received error in message: %v", metadata.Error)
@@ -142,7 +145,6 @@ func (h *Handler) MainServiceWorker(ctx context.Context, data notification.Notif
 				return
 			}
 			h.NotificationInformation(ctx, data, notificationPayload)
-
 		case inquiry.InquiryRender:
 			// TODO: unsupported
 			fallthrough
@@ -199,6 +201,7 @@ func (h *Handler) CheckHeartbeats(ctx context.Context) {
 func (h *Handler) moduleSetReady (ctx context.Context, moduleObj *Module, startUpDuration time.Duration, heartbeat time.Duration, changes []string, length int) {
 	moduleObj.Times.StartUpDuration = startUpDuration
 	moduleObj.Times.Heartbeat = heartbeat
+	moduleObj.Times.TimeLastUpdate = time.Now()
 	moduleObj.Changes = changes
 	moduleObj.Ready = true
 	h.commander.StartUp(ctx, moduleObj.ID, order.OrderStartUpPayload{
@@ -244,17 +247,26 @@ func (h *Handler) NotificationUpdate(ctx context.Context, data notification.Noti
 				}
 				return
 			}
-			if modName != data.From {
-				log.Ctx(ctx).Warn("%s is beatting heart for a different module: %s", data.From, modName)
-			}
 			moduleObj, _ := h.GetModule(modName)
+			if moduleObj == nil {
+				log.Ctx(ctx).Error("Module not found: %s", data.From)
+				h.commander.Error(ctx, data.From, errcore.ModuleNotFound)
+				return
+			}
 			moduleObj.Times.TimeLastUpdate = time.Now()
+			log.Ctx(ctx).Debug("heartbeat for %s was update by %s", modName, data.From)
 	default:
 		h.commander.Error(ctx, data.To, errcore.NotificationTypeInvalid)
 	}	
 }
 
 func (h *Handler) NotificationInformation(ctx context.Context, data notification.Notification, payload inquiry.InquiryInformationPayload) {
+		defer func ()  {
+			modObj, _ := h.GetModule(data.From)
+			if modObj != nil {
+				modObj.Times.TimeLastUpdate = time.Now()
+			}
+		}()
 		switch payload.Type {
 			case information.Modules:
 				moduleInfos := make([]information.ModuleInformation, 0, len(h.modules))

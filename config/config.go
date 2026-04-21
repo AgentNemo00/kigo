@@ -14,6 +14,8 @@ type Config struct {
 	SupportedFormats   	[]string
 	SupportedChannels  	[]string
 	SupportedFPS       	int
+	
+	Database			string
 }
 
 func (c *Config) Default() {
@@ -40,5 +42,8 @@ func (c *Config) Default() {
 	}
 	if len(c.SupportedChannels) == 0 {
 		c.SupportedChannels = []string{ui.PubSub}
+	}
+	if c.Database == "" {
+		c.Database = "kigo.db"
 	}
 }
