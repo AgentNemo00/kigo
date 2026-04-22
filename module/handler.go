@@ -12,8 +12,11 @@ import (
 	"github.com/AgentNemo00/kigo-core/order"
 	"github.com/AgentNemo00/kigo-core/update"
 	"github.com/AgentNemo00/kigo/pubsub"
+	"github.com/AgentNemo00/sca-instruments/database"
+	"github.com/AgentNemo00/sca-instruments/database/lectors"
 	"github.com/AgentNemo00/sca-instruments/log"
 	ps "github.com/AgentNemo00/sca-instruments/pubsub"
+	"gorm.io/gorm"
 )
 
 type Handler struct {
@@ -25,10 +28,14 @@ type Handler struct {
 	lastHeartbeatCheck 	time.Time
 	modules 			[]*Module
 	config 				*Config
+	db 					*database.Database
 }
 
 func NewHandler(config *Config) (*Handler, error) {
-	// TODO: add database initiation
+	db, err := database.WithLector(lectors.SqliteByPath(config.Database))
+	if err != nil {
+		return nil, err
+	}
 	communication, err := pubsub.NewCommunication(config.PubSubURL)
 	if err != nil {
 		return nil, err
@@ -39,14 +46,20 @@ func NewHandler(config *Config) (*Handler, error) {
 		commander: NewCommander(config.Name, communication),
 		lastHeartbeatCheck: time.Now(),
 		config: config,
+		db: db,
 	}, nil
 }
 
 func (h *Handler) Start(ctx context.Context) error {
 	h.ctx = ctx
 	h.lastHeartbeatCheck = time.Now()
+	err := h.FindModules(ctx)
+	if err != nil {
+		return err
+	}
 	subscription, err := h.communication.Sub.Subscribe(ctx, h.commander.Name(), func(ctx context.Context, metadata ps.Metadata, data *notification.Notification, responder ps.Responder[order.Order]) {
-		// TODO: persist after every call
+		// TODO: persist modules after every call
+		// TODO: delete modules after heartbeat fails
 		defer h.CheckHeartbeats(ctx)
 		if metadata.Error != nil {
 			log.Ctx(ctx).Error("received error in message: %v", metadata.Error)
@@ -66,11 +79,22 @@ func (h *Handler) Stop(ctx context.Context) {
 	h.communication.Subscription.Unsubscribe(ctx)
 }
 
+func (h *Handler) FindModules(ctx context.Context) error {
+	modules, err := gorm.G[Module](h.db.DB).Find(ctx)
+	if err != nil {
+		return err
+	}
+	for _, mod := range modules {
+		h.modules = append(h.modules, &mod)
+	}
+	return nil
+}
+
 func (h *Handler) GetModule(id string) (*Module, int) {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
 	for index, module := range h.modules {
-		if module.ID == id {
+		if module.UUID == id {
 			return module, index+1
 		}
 	}
@@ -92,7 +116,7 @@ func (h *Handler) DeleteModule(mod *Module) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	for i, m := range h.modules {
-		if m.ID == mod.ID {
+		if m.UUID == mod.UUID {
 			h.modules = append(h.modules[:i], h.modules[i+1:]...)
 			break
 		}
@@ -192,7 +216,7 @@ func (h *Handler) CheckHeartbeats(ctx context.Context) {
 	for _, mod := range toDelete {
 		log.Ctx(h.ctx).Info("Module %s is not responsive, deleting it", mod.Name)
 		h.DeleteModule(mod)
-		h.commander.Shutdown(ctx, mod.ID)
+		h.commander.Shutdown(ctx, mod.UUID)
 	}
 	h.lastHeartbeatCheck = time.Now()
 }
@@ -204,8 +228,8 @@ func (h *Handler) moduleSetReady (ctx context.Context, moduleObj *Module, startU
 	moduleObj.Times.TimeLastUpdate = time.Now()
 	moduleObj.Changes = changes
 	moduleObj.Ready = true
-	h.commander.StartUp(ctx, moduleObj.ID, order.OrderStartUpPayload{
-	ID: moduleObj.ID,
+	h.commander.StartUp(ctx, moduleObj.UUID, order.OrderStartUpPayload{
+	ID: moduleObj.UUID,
 	NumberOfModules: length,
 	MessageTo: order.MessageTo{
 		Notification: h.commander.Name(),
@@ -272,7 +296,7 @@ func (h *Handler) NotificationInformation(ctx context.Context, data notification
 				moduleInfos := make([]information.ModuleInformation, 0, len(h.modules))
 				for _, mod := range h.modules {
 					moduleInfos = append(moduleInfos, information.ModuleInformation{
-						ID: mod.ID,
+						ID: mod.UUID,
 						Name: mod.Name,
 						Changes: mod.Changes,
 						Ready: mod.Ready,
@@ -300,7 +324,7 @@ func (h *Handler) NotificationInformation(ctx context.Context, data notification
 				}
 				h.commander.Information(ctx, data.From, order.OrderInformationPayload{
 					Payload: information.ModuleInformation{
-						ID: moduleObj.ID,
+						ID: moduleObj.UUID,
 						Name: moduleObj.Name,
 						Changes: moduleObj.Changes,
 						Ready: moduleObj.Ready,

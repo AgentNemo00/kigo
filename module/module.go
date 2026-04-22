@@ -4,10 +4,12 @@ import (
 	"time"
 
 	"github.com/AgentNemo00/sca-instruments/security"
+	"gorm.io/gorm"
 )
 
 type Module struct {
-	ID   string
+	gorm.Model
+	UUID   string
 	Name string
 	Changes []string
 
@@ -26,12 +28,12 @@ type Times struct {
 }
 
 func NewModule(name string) (*Module, error) {
-	id, err := security.UUID()
+	uuid, err := security.UUID()
 	if err != nil {
 		return nil, err
 	}
 	return &Module{
-		ID:   id,
+		UUID:   uuid,
 		Name: name,
 		Times: Times{
 			CreateAt: time.Now(),
