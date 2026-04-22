@@ -3,15 +3,18 @@ package kigoui
 import (
 	"context"
 	"fmt"
+	"slices"
 
+	errcore "github.com/AgentNemo00/kigo-core/errors"
 	"github.com/AgentNemo00/kigo-core/inquiry"
 	"github.com/AgentNemo00/kigo-core/notification"
 	"github.com/AgentNemo00/kigo-core/order"
+	"github.com/AgentNemo00/kigo-core/ui"
 	"github.com/AgentNemo00/kigo-core/update"
 	"github.com/AgentNemo00/kigo/kigoui/pubsub"
 	"github.com/AgentNemo00/sca-instruments/log"
 	ps "github.com/AgentNemo00/sca-instruments/pubsub"
-	errcore "github.com/AgentNemo00/kigo-core/errors"
+	"github.com/AgentNemo00/sca-instruments/security"
 )
 
 type Handler struct {
@@ -52,8 +55,21 @@ func (h *Handler) Start(ctx context.Context) error {
 					}
 					return
 				}
-				// TODO: check if inquiried methods and channel are conform with configuration
-
+				if !h.IsConfigConform(ctx, notificationPayload) {
+					log.Ctx(ctx).Warn("Received configuration is not adaptable: %v", notificationPayload)
+					if data.From != "" {
+						h.Error(ctx, data.From, errcore.NotificationPayloadInvalid)
+					}
+					return 
+				}
+				switch(notificationPayload.Channel) {
+				case ui.IPC:
+					name, err := security.UUID()
+					if err != nil {
+						// TODO: internal
+					}
+					// create IPC channel with the size needed
+				}
 			default:
 				h.Error(ctx, data.From, errcore.NotificationTypeInvalid)
 		}
@@ -63,6 +79,19 @@ func (h *Handler) Start(ctx context.Context) error {
 	}
 	h.communication.Subscription = subscription
 	return nil
+}
+
+func (h *Handler) IsConfigConform(ctx context.Context, payload inquiry.InquiryRenderPayload) bool {
+	if h.config.FPS < payload.FPS {
+		return false
+	} 
+	if slices.Index(h.config.Channels, payload.Channel) == -1 {
+		return false
+	}
+	if slices.Index(h.config.Formats, payload.Format) == -1 {
+		return false
+	}
+	return true
 }
 
 func (h *Handler) Heartbeat(ctx context.Context, to string) {
