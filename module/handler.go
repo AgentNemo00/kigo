@@ -53,14 +53,15 @@ func NewHandler(config *Config) (*Handler, error) {
 func (h *Handler) Start(ctx context.Context) error {
 	h.ctx = ctx
 	h.lastHeartbeatCheck = time.Now()
-	err := h.FindModules(ctx)
+	err := h.FindModulesDB(ctx)
 	if err != nil {
 		return err
 	}
 	subscription, err := h.communication.Sub.Subscribe(ctx, h.commander.Name(), func(ctx context.Context, metadata ps.Metadata, data *notification.Notification, responder ps.Responder[order.Order]) {
-		// TODO: persist modules after every call
-		// TODO: delete modules after heartbeat fails
-		defer h.CheckHeartbeats(ctx)
+		defer func ()  {
+			h.CheckHeartbeats(ctx)
+			h.SaveModulesDB(ctx)
+		}()
 		if metadata.Error != nil {
 			log.Ctx(ctx).Error("received error in message: %v", metadata.Error)
 			return
@@ -79,7 +80,7 @@ func (h *Handler) Stop(ctx context.Context) {
 	h.communication.Subscription.Unsubscribe(ctx)
 }
 
-func (h *Handler) FindModules(ctx context.Context) error {
+func (h *Handler) FindModulesDB(ctx context.Context) error {
 	modules, err := gorm.G[Module](h.db.DB).Find(ctx)
 	if err != nil {
 		return err
@@ -88,6 +89,33 @@ func (h *Handler) FindModules(ctx context.Context) error {
 		h.modules = append(h.modules, &mod)
 	}
 	return nil
+}
+
+func (h *Handler) SaveModulesDB(ctx context.Context) error {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	for _, mod := range h.modules {
+		if mod.ID == 0 {
+			err := gorm.G[Module](h.db.DB).Create(ctx, mod)
+			if err != nil {
+				return err
+			}
+			continue
+		}
+		_, err := gorm.G[Module](h.db.DB).Updates(ctx, *mod)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (h *Handler) DeleteModuleDB(ctx context.Context, mod *Module) error {
+	if mod.ID <= 0 {
+		return nil
+	}
+	_, err := gorm.G[Module](h.db.DB).Where("id = ?", mod.ID).Delete(ctx)
+	return err
 }
 
 func (h *Handler) GetModule(id string) (*Module, int) {
@@ -216,6 +244,7 @@ func (h *Handler) CheckHeartbeats(ctx context.Context) {
 	for _, mod := range toDelete {
 		log.Ctx(h.ctx).Info("Module %s is not responsive, deleting it", mod.Name)
 		h.DeleteModule(mod)
+		h.DeleteModuleDB(ctx, mod)
 		h.commander.Shutdown(ctx, mod.UUID)
 	}
 	h.lastHeartbeatCheck = time.Now()
