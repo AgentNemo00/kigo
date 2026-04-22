@@ -59,8 +59,8 @@ func (h *Handler) Start(ctx context.Context) error {
 	}
 	subscription, err := h.communication.Sub.Subscribe(ctx, h.commander.Name(), func(ctx context.Context, metadata ps.Metadata, data *notification.Notification, responder ps.Responder[order.Order]) {
 		defer func ()  {
-			h.CheckHeartbeats(ctx)
-			h.SaveModulesDB(ctx)
+			h.CheckHeartbeats()
+			h.SaveModulesDB()
 		}()
 		if metadata.Error != nil {
 			log.Ctx(ctx).Error("received error in message: %v", metadata.Error)
@@ -91,18 +91,18 @@ func (h *Handler) FindModulesDB(ctx context.Context) error {
 	return nil
 }
 
-func (h *Handler) SaveModulesDB(ctx context.Context) error {
+func (h *Handler) SaveModulesDB() error {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	for _, mod := range h.modules {
 		if mod.ID == 0 {
-			err := gorm.G[Module](h.db.DB).Create(ctx, mod)
+			err := gorm.G[Module](h.db.DB).Create(h.ctx, mod)
 			if err != nil {
 				return err
 			}
 			continue
 		}
-		_, err := gorm.G[Module](h.db.DB).Updates(ctx, *mod)
+		_, err := gorm.G[Module](h.db.DB).Updates(h.ctx, *mod)
 		if err != nil {
 			return err
 		}
@@ -229,7 +229,7 @@ func (h *Handler) NotificationReady(ctx context.Context, data notification.Notif
 }
 
 // check if any module is not responsive and delete it, then send shutdown command to it
-func (h *Handler) CheckHeartbeats(ctx context.Context) {
+func (h *Handler) CheckHeartbeats() {
 	// Do not need to check more often than every 16ms (60fps)
 	if h.lastHeartbeatCheck.Add(time.Millisecond*16).Before(time.Now()) {
 		return
@@ -244,8 +244,8 @@ func (h *Handler) CheckHeartbeats(ctx context.Context) {
 	for _, mod := range toDelete {
 		log.Ctx(h.ctx).Info("Module %s is not responsive, deleting it", mod.Name)
 		h.DeleteModule(mod)
-		h.DeleteModuleDB(ctx, mod)
-		h.commander.Shutdown(ctx, mod.UUID)
+		h.DeleteModuleDB(h.ctx, mod)
+		h.commander.Shutdown(h.ctx, mod.UUID)
 	}
 	h.lastHeartbeatCheck = time.Now()
 }
