@@ -1,4 +1,4 @@
-package kigoui
+package handler
 
 import (
 	"context"
@@ -15,9 +15,9 @@ import (
 	"github.com/AgentNemo00/kigo-core/order"
 	"github.com/AgentNemo00/kigo-core/ui"
 	"github.com/AgentNemo00/kigo-core/update"
-	"github.com/AgentNemo00/kigo/kigoui/frame"
-	"github.com/AgentNemo00/kigo/kigoui/paint"
-	"github.com/AgentNemo00/kigo/kigoui/pubsub"
+	"github.com/AgentNemo00/kigo-ui/frame"
+	"github.com/AgentNemo00/kigo-ui/paint"
+	"github.com/AgentNemo00/kigo-ui/pubsub"
 	"github.com/AgentNemo00/sca-instruments/log"
 	ps "github.com/AgentNemo00/sca-instruments/pubsub"
 	"github.com/AgentNemo00/sca-instruments/security"

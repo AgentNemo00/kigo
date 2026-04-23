@@ -1,4 +1,4 @@
-package kigoui
+package handler
 
 import "github.com/AgentNemo00/kigo-core/ui"
 
