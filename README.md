@@ -29,12 +29,12 @@ I will use [GoGPU](https://github.com/gogpu/ui) as soon at is available for the 
 
 ### Phase 1 Implement communication foundation
 
-- [ ] Implement communication between KiGoUI and KiGo
+- [X] Implement communication between KiGoUI and KiGo
 - [X] Implement communication between KiGo and modules via pubsub
 
 ### Phase 2 Implement modules showcase 
 
-- [ ] Implement modules render roundtrip
+- [X] Implement modules render roundtrip
 - [ ] Implement basic modules
 
 ### Phase 3 Implement shipping strategy
