@@ -31,7 +31,7 @@ type Handler struct {
 }
 
 func NewHandler(config *Config) (*Handler, error) {
-	communication, err := pubsub.NewCommunication(config.PubSubURL)
+	communication, err := pubsub.NewCommunication(config.PubSubUrl)
 	if err != nil {
 		return nil, err
 	}
@@ -42,7 +42,7 @@ func NewHandler(config *Config) (*Handler, error) {
 			return nil, err
 		}		
 	}
-	channelPubSub, err := frame.NewPubSub(config.PubSubURL)
+	channelPubSub, err := frame.NewPubSub(config.PubSubUrl)
 	if err != nil {
 		return nil, err
 	}
