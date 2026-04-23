@@ -9,6 +9,7 @@ import (
 	"time"
 
 	errcore "github.com/AgentNemo00/kigo-core/errors"
+	"github.com/AgentNemo00/kigo-core/information"
 	"github.com/AgentNemo00/kigo-core/inquiry"
 	"github.com/AgentNemo00/kigo-core/notification"
 	"github.com/AgentNemo00/kigo-core/order"
@@ -87,6 +88,32 @@ func (h *Handler) Start(ctx context.Context) error {
 				if err != nil {
 					log.Ctx(ctx).Err(err)
 				}
+			case inquiry.InquiryInformation:
+				payload, ok := data.Payload.(inquiry.InquiryInformationPayload)
+				if !ok && data.From != "" {
+					log.Ctx(ctx).Error("Received invalid payload for NotificationReady: %v", data.Payload)
+					if data.From != "" {
+						h.Error(ctx, data.From, errcore.NotificationPayloadInvalid)
+					}
+					return
+				}
+				if payload.Type != information.Screen {
+					h.Error(ctx, data.From, errcore.NotificationTypeInvalid)
+					return 
+				}
+				x,y := GetScreenDimensions()
+				err := h.communication.PubModule.Publish(ctx, data.From, order.Order{
+					From: h.config.Name,
+					To: data.From,
+					Order: order.OrderInformation,
+					Payload: information.Window{
+						SizeX: x,
+						SizeY: y,
+					},
+				})
+				if err != nil {
+					log.Ctx(ctx).Err(err)
+				}
 			default:
 				h.Error(ctx, data.From, errcore.NotificationTypeInvalid)
 		}
@@ -133,11 +160,14 @@ func (h *Handler) StartRenderHandshake(ctx context.Context, from string, payload
 			h.Error(ctx, from, errcore.Unsupported)
 			return fmt.Errorf("not supported channel")
 		}
+		x,y := GetScreenDimensions()
 		err = h.communication.PubModule.Publish(ctx, from, order.Order{
 			From: h.config.Name,
 			To: from,
 			Order: order.OrderRender,
 			Payload: order.OrderRenderPayload{
+				SizeX: x,
+				SizeY: y,
 				ChannelName: name,
 			},
 		})

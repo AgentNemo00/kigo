@@ -4,14 +4,19 @@ go 1.26.0
 
 require (
 	github.com/AgentNemo00/kigo v0.0.0-20260423131436-ad01e7be8617
-	github.com/AgentNemo00/kigo-core v0.5.9
+	github.com/AgentNemo00/kigo-core v0.5.10
 	github.com/AgentNemo00/sca-instruments v0.6.2
 	github.com/EBWi11/mmap_ringbuffer v0.1.3
 )
 
 require (
+	github.com/gen2brain/shm v0.1.0 // indirect
+	github.com/godbus/dbus/v5 v5.1.0 // indirect
 	github.com/google/uuid v1.6.0 // indirect
+	github.com/jezek/xgb v1.1.1 // indirect
+	github.com/kbinani/screenshot v0.0.0-20250624051815-089614a94018 // indirect
 	github.com/klauspost/compress v1.18.5 // indirect
+	github.com/lxn/win v0.0.0-20210218163916-a377121e959e // indirect
 	github.com/mattn/go-colorable v0.1.14 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/nats-io/nats.go v1.50.0 // indirect
