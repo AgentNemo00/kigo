@@ -197,9 +197,6 @@ func (h *Handler) MainServiceWorker(ctx context.Context, data notification.Notif
 				return
 			}
 			h.NotificationInformation(ctx, data, notificationPayload)
-		case inquiry.InquiryRender:
-			// TODO: unsupported
-			fallthrough
 		default:
 			if data.From != "" {
 				h.commander.Error(ctx, data.From, errcore.NotificationTypeInvalid)

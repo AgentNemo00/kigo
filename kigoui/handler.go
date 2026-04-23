@@ -82,6 +82,7 @@ func (h *Handler) Start(ctx context.Context) error {
 					}
 					return 
 				}
+				// TODO: context
 				err := h.StartRenderHandshake(context.TODO(), data.From, payload)
 				if err != nil {
 					log.Ctx(ctx).Err(err)
