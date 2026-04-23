@@ -2,6 +2,7 @@ package module
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"time"
 
@@ -33,6 +34,10 @@ type Handler struct {
 
 func NewHandler(config *Config) (*Handler, error) {
 	db, err := database.WithLector(lectors.SqliteByPath(config.Database))
+	if err != nil {
+		return nil, err
+	}
+	err = db.ApplySchemas(&Module{})
 	if err != nil {
 		return nil, err
 	}
@@ -85,6 +90,7 @@ func (h *Handler) FindModulesDB(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	fmt.Println(modules)
 	for _, mod := range modules {
 		h.modules = append(h.modules, &mod)
 	}
