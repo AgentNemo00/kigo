@@ -5,7 +5,7 @@ go 1.26.0
 replace github.com/kataras/golog => github.com/kataras/golog v0.1.13
 
 require (
-	github.com/AgentNemo00/kigo-core v0.5.5
+	github.com/AgentNemo00/kigo-core v0.5.7
 	github.com/AgentNemo00/sca-instruments v0.6.2
 )
 

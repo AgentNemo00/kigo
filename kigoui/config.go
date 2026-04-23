@@ -7,5 +7,6 @@ type Config struct {
 	FPS 		int
 	PubSubURL 	string
 	KiGo 		string
+	IPCPath 	string
 }
 
