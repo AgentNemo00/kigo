@@ -21,7 +21,6 @@ import (
 	ps "github.com/AgentNemo00/sca-instruments/pubsub"
 	"github.com/AgentNemo00/sca-instruments/security"
 	ringbuffer "github.com/EBWi11/mmap_ringbuffer"
-	"golang.org/x/text/cases"
 )
 
 type Handler struct {
@@ -109,8 +108,7 @@ func (h *Handler) StartRenderHandshake(ctx context.Context, from string, payload
 	dataChan := make(chan []byte)
 	packageChan := make(chan paint.Package)
 	var channel *frame.Frame
-	var channelClose func()
-	channelClose = func ()  {
+	channelClose := func ()  {
 		channel.Close()
 		cancel()
 	}
@@ -215,6 +213,7 @@ func (h *Handler) Transform(ctx context.Context, dataChan chan []byte, format st
 			}
 			log.Ctx(ctx).Debug("%v", dataPackage)			 
 		default:
+			log.Ctx(ctx).Debug("transform loop")
 		}
 	}
 }
@@ -231,6 +230,7 @@ func (h *Handler) Draw(ctx context.Context, packageChan chan paint.Package) erro
 			// TODO: draw
 			log.Ctx(ctx).Debug("%v", data)
 		default:
+			log.Ctx(ctx).Debug("draw loop")
 		}
 	}
 }
