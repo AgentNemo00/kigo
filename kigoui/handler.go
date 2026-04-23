@@ -2,6 +2,7 @@ package kigoui
 
 import (
 	"context"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"slices"
@@ -14,6 +15,7 @@ import (
 	"github.com/AgentNemo00/kigo-core/ui"
 	"github.com/AgentNemo00/kigo-core/update"
 	"github.com/AgentNemo00/kigo/kigoui/frame"
+	"github.com/AgentNemo00/kigo/kigoui/paint"
 	"github.com/AgentNemo00/kigo/kigoui/pubsub"
 	"github.com/AgentNemo00/sca-instruments/log"
 	ps "github.com/AgentNemo00/sca-instruments/pubsub"
@@ -105,12 +107,11 @@ func (h *Handler) Start(ctx context.Context) error {
 							log.Ctx(ctx).Err(err)
 							return 
 						}
-						go h.Draw(ctxTransmission, dataChan)
+						packageChan := make(chan paint.Package)
+						go h.Draw(ctxTransmission, packageChan)
+						go h.Transform(ctxTransmission, dataChan, payload.Format, packageChan)
 						go h.Transmission(ctxTransmission, dataChan, ipc, payload, close)
 						
-
-
-
 					}
 			default:
 				h.Error(ctx, data.From, errcore.NotificationTypeInvalid)
@@ -164,17 +165,44 @@ func (h *Handler) Transmission(ctx context.Context, dataChan chan []byte, frames
 	
 }
 
-func (h *Handler) Draw(ctx context.Context, dataChan chan []byte) {
+func (h *Handler) Transform(ctx context.Context, dataChan chan []byte, format string, packageChan chan paint.Package) {
 	for {
 		select {
 		case <- ctx.Done():
 			return
-		case data, ok := <- dataChan:
+		case dataPackage, ok := <- dataChan:
+			if !ok {
+				return 
+			}
+			positionX := binary.BigEndian.Uint16(dataPackage[0:2])
+			positionY := binary.BigEndian.Uint16(dataPackage[2:4])
+			size := binary.BigEndian.Uint32(dataPackage[4:8])
+			data := dataPackage[8:size+8]
+			if format != ui.RAW {
+				// TODO: transform
+			}
+			packageChan <- paint.Package{
+				PositionX: int(positionX),
+				PositionY: int(positionY),
+				Data: data,
+			}
+			log.Ctx(ctx).Debug("%v", dataPackage)			 
+		default:
+		}
+	}
+}
+
+func (h *Handler) Draw(ctx context.Context, packageChan chan paint.Package) {
+		for {
+		select {
+		case <- ctx.Done():
+			return
+		case data, ok := <- packageChan:
 			if !ok {
 				return 
 			}
 			// TODO: draw
-			log.Ctx(ctx).Debug("%v", data)			 
+			log.Ctx(ctx).Debug("%v", data)
 		default:
 		}
 	}
