@@ -1,4 +1,4 @@
-FROM golang:1.22 as builder
+FROM golang:1.26 as builder
 
 ARG PRVT_KEY
 ARG MAIN_PATH
