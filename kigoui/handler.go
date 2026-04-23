@@ -21,12 +21,14 @@ import (
 	ps "github.com/AgentNemo00/sca-instruments/pubsub"
 	"github.com/AgentNemo00/sca-instruments/security"
 	ringbuffer "github.com/EBWi11/mmap_ringbuffer"
+	"golang.org/x/text/cases"
 )
 
 type Handler struct {
 	communication 		*pubsub.Communication
 	config 				*Config
-	ipc 				*frame.IPC
+	channelIPC 			*frame.IPC
+	channelPubSub		*frame.PubSub
 }
 
 func NewHandler(config *Config) (*Handler, error) {
@@ -34,14 +36,22 @@ func NewHandler(config *Config) (*Handler, error) {
 	if err != nil {
 		return nil, err
 	}
-	ipc, err := frame.NewIPC(config.IPCPath)
+	var channelIPC *frame.IPC
+	if config.IPCPath != "" {
+		channelIPC, err = frame.NewIPC(config.IPCPath)
+		if err != nil {
+			return nil, err
+		}		
+	}
+	channelPubSub, err := frame.NewPubSub(config.PubSubURL)
 	if err != nil {
 		return nil, err
 	}
 	return &Handler{
 		communication: communication,
 		config: config,
-		ipc: ipc,
+		channelIPC: channelIPC,
+		channelPubSub: channelPubSub,
 	}, nil
 }
 
@@ -73,46 +83,10 @@ func (h *Handler) Start(ctx context.Context) error {
 					}
 					return 
 				}
-				switch(payload.Channel) {
-					// TODO pubsub
-					case ui.IPC:
-						name, err := security.UUID()
-						if err != nil {
-							h.Error(ctx, data.From, errcore.Internal)
-							return 
-						}
-
-						// TODO: context parrent
-						ctxTransmission, cancel := context.WithCancel(context.TODO())
-						ipc, err := h.ipc.Open(ctxTransmission, name, payload.MaxFrameSize)
-						if err != nil {
-							h.Error(ctx, data.From, errcore.Channel)
-							log.Ctx(ctx).Error("ipc could not be open")
-							return 
-						}
-						dataChan := make(chan []byte)
-						close := func ()  {
-							ipc.Close()
-							cancel()
-						}
-						err = h.communication.PubModule.Publish(ctx, data.From, order.Order{
-							From: h.config.Name,
-							To: data.From,
-							Order: order.OrderRender,
-							Payload: order.OrderRenderPayload{
-								ChannelName: name,
-							},
-						})
-						if err != nil {
-							log.Ctx(ctx).Err(err)
-							return 
-						}
-						packageChan := make(chan paint.Package)
-						go h.Draw(ctxTransmission, packageChan)
-						go h.Transform(ctxTransmission, dataChan, payload.Format, packageChan)
-						go h.Transmission(ctxTransmission, dataChan, ipc, payload, close)
-						
-					}
+				err := h.StartRenderHandshake(context.TODO(), data.From, payload)
+				if err != nil {
+					log.Ctx(ctx).Err(err)
+				}
 			default:
 				h.Error(ctx, data.From, errcore.NotificationTypeInvalid)
 		}
@@ -124,7 +98,61 @@ func (h *Handler) Start(ctx context.Context) error {
 	return nil
 }
 
-func (h *Handler) Transmission(ctx context.Context, dataChan chan []byte, frames *frame.Frame, payload inquiry.InquiryRenderPayload, close func()) {
+func (h *Handler) StartRenderHandshake(ctx context.Context, from string, payload inquiry.InquiryRenderPayload) error {
+	name, err := security.UUID()
+	if err != nil {
+		h.Error(ctx, from, errcore.Internal)
+		return err
+	}
+
+	ctxTransmission, cancel := context.WithCancel(ctx)
+	dataChan := make(chan []byte)
+	packageChan := make(chan paint.Package)
+	var channel *frame.Frame
+	var channelClose func()
+	channelClose = func ()  {
+		channel.Close()
+		cancel()
+	}
+	switch(payload.Channel) {
+		case ui.IPC:
+			channel, err = h.channelIPC.Open(ctxTransmission, name, payload.MaxFrameSize)
+			if err != nil {
+				h.Error(ctx, from, errcore.Channel)
+				log.Ctx(ctx).Error("ipc could not be open")
+				return err
+			}
+
+		case ui.PubSub:
+			channel, err = h.channelPubSub.Open(ctxTransmission, name)
+			if err != nil {
+				h.Error(ctx, from, errcore.Channel)
+				log.Ctx(ctx).Error("ipc could not be open")
+				return err
+			}
+		default:
+			h.Error(ctx, from, errcore.Unsupported)
+			return fmt.Errorf("not supported channel")
+		}
+		err = h.communication.PubModule.Publish(ctx, from, order.Order{
+			From: h.config.Name,
+			To: from,
+			Order: order.OrderRender,
+			Payload: order.OrderRenderPayload{
+				ChannelName: name,
+			},
+		})
+		if err != nil {
+			log.Ctx(ctx).Err(err)
+			return err
+		}
+		go h.Draw(ctxTransmission, packageChan)
+		go h.Transform(ctxTransmission, dataChan, payload.Format, packageChan)
+		go h.Transmission(ctxTransmission, dataChan, channel, payload, channelClose)
+		return nil
+}
+
+func (h *Handler) Transmission(ctx context.Context, dataChan chan []byte, frames *frame.Frame, payload inquiry.InquiryRenderPayload, close func()) error {
 	started := time.Now()
 	endAt := started.Add(payload.Time)
 	bufferEmptyTimeout := started
@@ -136,7 +164,7 @@ func (h *Handler) Transmission(ctx context.Context, dataChan chan []byte, frames
 	for {
 		select {
 			case <- ctx.Done():
-				return
+				return ctx.Err()
 			default:
 		}
 		data, err := frames.Read()
@@ -146,33 +174,32 @@ func (h *Handler) Transmission(ctx context.Context, dataChan chan []byte, frames
 			continue
 		}
 		if errors.Is(err, ringbuffer.ErrBufferEmpty) && bufferEmptyTimeout.Add(payload.Timeout).After(time.Now()) {
-			// TODO: send error state
 			close()
-			return 
+			return fmt.Errorf("transmission frame timeout")
 		}
 		if errors.Is(err, ringbuffer.ErrClosed) {
 			// successful
 			close()
-			return
+			return nil
 		}
 		if started != endAt && endAt.After(time.Now()) {
-			// successful if all the frames were send 
+			// error timeout 
 			close()
-			return
+			return fmt.Errorf("transmission timeout")
 		}
 		time.Sleep(estimatedWaitingTime)
 	}
 	
 }
 
-func (h *Handler) Transform(ctx context.Context, dataChan chan []byte, format string, packageChan chan paint.Package) {
+func (h *Handler) Transform(ctx context.Context, dataChan chan []byte, format string, packageChan chan paint.Package) error {
 	for {
 		select {
 		case <- ctx.Done():
-			return
+			return ctx.Err()
 		case dataPackage, ok := <- dataChan:
 			if !ok {
-				return 
+				return fmt.Errorf("channel transform closed")
 			}
 			positionX := binary.BigEndian.Uint16(dataPackage[0:2])
 			positionY := binary.BigEndian.Uint16(dataPackage[2:4])
@@ -192,14 +219,14 @@ func (h *Handler) Transform(ctx context.Context, dataChan chan []byte, format st
 	}
 }
 
-func (h *Handler) Draw(ctx context.Context, packageChan chan paint.Package) {
+func (h *Handler) Draw(ctx context.Context, packageChan chan paint.Package) error {
 		for {
 		select {
 		case <- ctx.Done():
-			return
+			return ctx.Err()
 		case data, ok := <- packageChan:
 			if !ok {
-				return 
+				return fmt.Errorf("channel draw closed")
 			}
 			// TODO: draw
 			log.Ctx(ctx).Debug("%v", data)
