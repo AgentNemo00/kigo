@@ -34,6 +34,13 @@ func main() {
 	if err != nil {
 		log.Ctx(context.Background()).Err(err)
 		return
-	}	
+	}
+	for {
+		select{
+			case <- ctx.Done():
+				return
+			default:
+		}
+	}
 }
 
