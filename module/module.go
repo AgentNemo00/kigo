@@ -2,29 +2,37 @@ package module
 
 import (
 	"time"
-
+	"database/sql/driver"
 	"github.com/AgentNemo00/sca-instruments/security"
 	"gorm.io/gorm"
+	"strings"
 )
 
 type Module struct {
 	gorm.Model
-	UUID   string
-	Name string
-	Changes []string
+	UUID   				string
+	Name 				string
+	Changes 			StringArray
 
-	Times
+	CreateAt 			time.Time // time it was created
+	StartUpDuration 	time.Duration // Duration to be ready
+	Heartbeat 			time.Duration // Duration between heartbeats
+	TimeLastUpdate 		time.Time // time it was last updated	
 	
-	Ready bool
+	Ready 				bool
 
-	SheduledForCleanUp bool
+	SheduledForCleanUp 	bool
 }
 
-type Times struct {
-	CreateAt time.Time // time it was created
-	StartUpDuration time.Duration // Duration to be ready
-	Heartbeat time.Duration // Duration between heartbeats
-	TimeLastUpdate time.Time // time it was last updated
+type StringArray []string
+
+func (s StringArray) Value() (driver.Value, error) {
+    return strings.Join(s, ","), nil
+}
+
+func (s *StringArray) Scan(value interface{}) error {
+    *s = strings.Split(value.(string), ",")
+    return nil
 }
 
 func NewModule(name string) (*Module, error) {
@@ -35,10 +43,8 @@ func NewModule(name string) (*Module, error) {
 	return &Module{
 		UUID:   uuid,
 		Name: name,
-		Times: Times{
-			CreateAt: time.Now(),
-			TimeLastUpdate: time.Now(),
-		},
+		CreateAt: time.Now(),
+		TimeLastUpdate: time.Now(),
 	}, nil
 }
 

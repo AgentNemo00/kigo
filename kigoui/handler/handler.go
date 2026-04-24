@@ -29,6 +29,7 @@ type Handler struct {
 	config 				*Config
 	channelIPC 			*frame.IPC
 	channelPubSub		*frame.PubSub
+	ctx 				context.Context
 }
 
 func NewHandler(config *Config) (*Handler, error) {
@@ -56,6 +57,7 @@ func NewHandler(config *Config) (*Handler, error) {
 }
 
 func (h *Handler) Start(ctx context.Context) error {
+	h.ctx = ctx
 	subscription, err := h.communication.Sub.Subscribe(ctx, h.config.Name, func(ctx context.Context, metadata ps.Metadata, data *notification.Notification, responder ps.Responder[order.Order]) {
 		if metadata.Error != nil {
 			log.Ctx(ctx).Error("received error in message: %v", metadata.Error)
@@ -83,8 +85,7 @@ func (h *Handler) Start(ctx context.Context) error {
 					}
 					return 
 				}
-				// TODO: context
-				err := h.StartRenderHandshake(context.TODO(), data.From, payload)
+				err := h.StartRenderHandshake(h.ctx, data.From, payload)
 				if err != nil {
 					log.Ctx(ctx).Err(err)
 				}
@@ -101,14 +102,15 @@ func (h *Handler) Start(ctx context.Context) error {
 					h.Error(ctx, data.From, errcore.NotificationTypeInvalid)
 					return 
 				}
-				x,y := GetScreenDimensions()
+				width, height := GetScreenDimensions()
 				err := h.communication.PubModule.Publish(ctx, data.From, order.Order{
 					From: h.config.Name,
 					To: data.From,
 					Order: order.OrderInformation,
 					Payload: information.Window{
-						SizeX: x,
-						SizeY: y,
+						Width: width,
+						Height: height,
+						MaxFPS: h.config.FPS,
 					},
 				})
 				if err != nil {
@@ -140,9 +142,15 @@ func (h *Handler) StartRenderHandshake(ctx context.Context, from string, payload
 		channel.Close()
 		cancel()
 	}
+	frameSize := payload.MaxFrameSize
+	if frameSize <= 0 {
+		// no frame size set. maximal possible frame size set
+		width, height := GetScreenDimensions()
+		frameSize = width * height + 8 // add header variables
+	}
 	switch(payload.Channel) {
 		case ui.IPC:
-			channel, err = h.channelIPC.Open(ctxTransmission, name, payload.MaxFrameSize)
+			channel, err = h.channelIPC.Open(ctxTransmission, name, frameSize)
 			if err != nil {
 				h.Error(ctx, from, errcore.Channel)
 				log.Ctx(ctx).Error("ipc could not be open")
@@ -160,14 +168,15 @@ func (h *Handler) StartRenderHandshake(ctx context.Context, from string, payload
 			h.Error(ctx, from, errcore.Unsupported)
 			return fmt.Errorf("not supported channel")
 		}
-		x,y := GetScreenDimensions()
+		width, height := GetScreenDimensions()
 		err = h.communication.PubModule.Publish(ctx, from, order.Order{
 			From: h.config.Name,
 			To: from,
 			Order: order.OrderRender,
 			Payload: order.OrderRenderPayload{
-				SizeX: x,
-				SizeY: y,
+				ScreenWidth: width,
+				ScreenHeight: height,
+				MaxFrameSize: frameSize,
 				ChannelName: name,
 			},
 		})

@@ -2,7 +2,6 @@ package module
 
 import (
 	"context"
-	"fmt"
 	"sync"
 	"time"
 
@@ -90,7 +89,6 @@ func (h *Handler) FindModulesDB(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	fmt.Println(modules)
 	for _, mod := range modules {
 		h.modules = append(h.modules, &mod)
 	}
@@ -255,9 +253,9 @@ func (h *Handler) CheckHeartbeats() {
 
 // Set module ready and update its information
 func (h *Handler) moduleSetReady (ctx context.Context, moduleObj *Module, startUpDuration time.Duration, heartbeat time.Duration, changes []string, length int) {
-	moduleObj.Times.StartUpDuration = startUpDuration
-	moduleObj.Times.Heartbeat = heartbeat
-	moduleObj.Times.TimeLastUpdate = time.Now()
+	moduleObj.StartUpDuration = startUpDuration
+	moduleObj.Heartbeat = heartbeat
+	moduleObj.TimeLastUpdate = time.Now()
 	moduleObj.Changes = changes
 	moduleObj.Ready = true
 	h.commander.StartUp(ctx, moduleObj.UUID, order.OrderStartUpPayload{
@@ -293,7 +291,7 @@ func (h *Handler) NotificationUpdate(ctx context.Context, data notification.Noti
 			moduleObj.Ready = modConfig.Ready
 			moduleObj.Changes = modConfig.Changes
 			moduleObj.TimeLastUpdate = time.Now()
-			moduleObj.Times.Heartbeat = modConfig.Heartbeat
+			moduleObj.Heartbeat = modConfig.Heartbeat
 		case update.Heartbeat:
 			modName, ok := payload.Payload.(string)
 			if !ok {
@@ -309,7 +307,7 @@ func (h *Handler) NotificationUpdate(ctx context.Context, data notification.Noti
 				h.commander.Error(ctx, data.From, errcore.ModuleNotFound)
 				return
 			}
-			moduleObj.Times.TimeLastUpdate = time.Now()
+			moduleObj.TimeLastUpdate = time.Now()
 			log.Ctx(ctx).Debug("heartbeat for %s was update by %s", modName, data.From)
 	default:
 		h.commander.Error(ctx, data.To, errcore.NotificationTypeInvalid)
@@ -320,7 +318,7 @@ func (h *Handler) NotificationInformation(ctx context.Context, data notification
 		defer func ()  {
 			modObj, _ := h.GetModule(data.From)
 			if modObj != nil {
-				modObj.Times.TimeLastUpdate = time.Now()
+				modObj.TimeLastUpdate = time.Now()
 			}
 		}()
 		switch payload.Type {
@@ -333,7 +331,7 @@ func (h *Handler) NotificationInformation(ctx context.Context, data notification
 						Changes: mod.Changes,
 						Ready: mod.Ready,
 						Heartbeat: mod.Heartbeat,
-						LastHeartbeat: mod.Times.TimeLastUpdate,
+						LastHeartbeat: mod.TimeLastUpdate,
 					})
 				}
 				h.commander.Information(ctx, data.From, order.OrderInformationPayload{
@@ -361,7 +359,7 @@ func (h *Handler) NotificationInformation(ctx context.Context, data notification
 						Changes: moduleObj.Changes,
 						Ready: moduleObj.Ready,
 						Heartbeat: moduleObj.Heartbeat,
-						LastHeartbeat: moduleObj.Times.TimeLastUpdate,
+						LastHeartbeat: moduleObj.TimeLastUpdate,
 					},
 				})
 	

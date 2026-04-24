@@ -8,8 +8,8 @@ import (
 )
 
 type Communication struct {
-	Pub pubsub.Publisher[order.Order]
-	Sub pubsub.Subscriber[notification.Notification, order.Order]
+	Pub 		pubsub.Publisher[order.Order]
+	Sub 		pubsub.Subscriber[notification.Notification, order.Order]
 	Subscription pubsub.Subscription
 }
 

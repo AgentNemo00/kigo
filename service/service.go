@@ -18,15 +18,11 @@ type Service struct {
 }
 
 func NewService(config *config.Config) (*Service, error) {
-	// TODO: start first the UI and get width and height
-
 	handler, err := module.NewHandler(&module.Config{
 		Name: config.Name,
 		PubSubURL: config.PubSubUrl,
 		RenderTo: config.KiGoUI,
 		UIConfiguration: order.UIConfiguration{
-			ScreenWidth: 0, // TODO: Get from KiGOUI
-			ScreenHeight: 0, // TODO: Get from KiGOUI
 			SupportedFormats: config.SupportedFormats,
 			SupportedChannels: config.SupportedChannels,
 			FPS: config.SupportedFPS,
