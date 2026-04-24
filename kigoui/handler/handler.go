@@ -80,9 +80,7 @@ func (h *Handler) Start(ctx context.Context) error {
 				}
 				if !h.IsConfigConform(ctx, payload) {
 					log.Ctx(ctx).Warn("Received configuration is not adaptable: %v", payload)
-					if data.From != "" {
-						h.Error(ctx, data.From, errcore.NotificationPayloadInvalid)
-					}
+					h.Error(ctx, data.From, errcore.NotificationPayloadInvalid)
 					return 
 				}
 				err = h.StartRenderHandshake(h.ctx, data.From, payload)

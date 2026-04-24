@@ -58,7 +58,7 @@ func (h *Handler) Start(ctx context.Context) error {
 		return err
 	}
 	h.modules = modules
-	h.heartbeatRoutine(ctx)
+	go h.heartbeatRoutine(ctx)
 	subscription, err := h.communication.Sub.Subscribe(ctx, h.commander.Name(), func(ctx context.Context, metadata ps.Metadata, data *notification.Notification) {
 		defer func ()  {
 			h.CheckHeartbeats()
@@ -139,6 +139,7 @@ func (h *Handler) MainServiceWorker(ctx context.Context, data notification.Notif
 				h.commander.Error(ctx, data.From, errcore.Internal)
 				return				
 			}
+			log.Ctx(context.Background()).Debug("creating/finding module")
 			var moduleObj *Module
 			moduleObj, _ = h.GetModule(data.From)
 			if moduleObj == nil {
@@ -181,6 +182,7 @@ func (h *Handler) MainServiceWorker(ctx context.Context, data notification.Notif
 				},
 			})
 			log.Ctx(ctx).Debug("Send message to %s", data.From)
+			log.Ctx(ctx).Info("New module: %s", moduleObj.Name)
 		case notification.NotificationUpdate:
 			var payload notification.NotificationUpdatePayload
 			err := mapToStruct(data.Payload, &payload)
@@ -200,9 +202,8 @@ func (h *Handler) MainServiceWorker(ctx context.Context, data notification.Notif
 			}
 			h.NotificationInformation(ctx, data, payload)
 		default:
-			if data.From != "" {
-				h.commander.Error(ctx, data.From, errcore.NotificationTypeInvalid)
-			}
+			h.commander.Error(ctx, data.From, errcore.NotificationTypeInvalid)
+
 	}
 } 
 
@@ -242,6 +243,7 @@ func (h *Handler) CheckHeartbeats() {
 }
 
 func (h *Handler) NotificationUpdate(ctx context.Context, data notification.Notification, payload notification.NotificationUpdatePayload) {
+	log.Ctx(ctx).Debug("received %v", data)
 	switch payload.Type {
 		case update.Config:
 			var modConfig update.Module
@@ -269,9 +271,7 @@ func (h *Handler) NotificationUpdate(ctx context.Context, data notification.Noti
 			modName, ok := payload.Payload.(string)
 			if !ok {
 				log.Ctx(ctx).Error("Received invalid payload for update.Config: %v", payload.Payload)
-				if data.From != "" {
-					h.commander.Error(ctx, data.From, errcore.NotificationPayloadInvalid)
-				}
+				h.commander.Error(ctx, data.From, errcore.NotificationPayloadInvalid)
 				return
 			}
 			moduleObj, _ := h.GetModule(modName)
