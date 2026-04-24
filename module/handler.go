@@ -58,7 +58,7 @@ func (h *Handler) Start(ctx context.Context) error {
 		return err
 	}
 	h.modules = modules
-	subscription, err := h.communication.Sub.Subscribe(ctx, h.commander.Name(), func(ctx context.Context, metadata ps.Metadata, data *notification.Notification, responder ps.Responder[order.Order]) {
+	subscription, err := h.communication.Sub.Subscribe(ctx, h.commander.Name(), func(ctx context.Context, metadata ps.Metadata, data *notification.Notification) {
 		defer func ()  {
 			h.CheckHeartbeats()
 			err := h.db.SaveModulesDB(h.ctx, h.modules)
@@ -75,7 +75,7 @@ func (h *Handler) Start(ctx context.Context) error {
 			return
 		}
 		log.Ctx(ctx).Debug("Got message at %s from %s", metadata.Timestamp.Format("15:04:05"), data.From)
-		h.MainServiceWorker(ctx, *data, responder)
+		h.MainServiceWorker(ctx, *data)
 	})
 	if err != nil {
 		return err
@@ -121,7 +121,7 @@ func (h *Handler) DeleteModule(mod *Module) {
 	}
 }
 
-func (h *Handler) MainServiceWorker(ctx context.Context, data notification.Notification, responder ps.Responder[order.Order]) {
+func (h *Handler) MainServiceWorker(ctx context.Context, data notification.Notification) {
 	log.Ctx(ctx).Debug("Got message: %#v", data)
 	switch data.Notification {
 		case notification.NotificationReady:
@@ -212,9 +212,10 @@ func (h *Handler) CheckHeartbeats() {
 func (h *Handler) NotificationUpdate(ctx context.Context, data notification.Notification, payload notification.NotificationUpdatePayload) {
 	switch payload.Type {
 		case update.Config:
-			modConfig, ok := payload.Payload.(update.Module)
-			if !ok {
-				log.Ctx(ctx).Error("Received invalid payload for update.Config: %v", payload.Payload)
+			var modConfig update.Module
+			err := mapToStruct(payload.Payload, &modConfig)
+			if err != nil {
+				log.Ctx(ctx).Err(err)
 				h.commander.Error(ctx, data.From, errcore.NotificationPayloadInvalid)
 				return
 			}

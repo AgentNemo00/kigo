@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"slices"
 	"time"
+	"encoding/json"
 
 	errcore "github.com/AgentNemo00/kigo-core/errors"
 	"github.com/AgentNemo00/kigo-core/information"
@@ -58,24 +59,23 @@ func NewHandler(config *Config) (*Handler, error) {
 
 func (h *Handler) Start(ctx context.Context) error {
 	h.ctx = ctx
-	subscription, err := h.communication.Sub.Subscribe(ctx, h.config.Name, func(ctx context.Context, metadata ps.Metadata, data *notification.Notification, responder ps.Responder[order.Order]) {
+	subscription, err := h.communication.Sub.Subscribe(ctx, h.config.Name, func(ctx context.Context, metadata ps.Metadata, data *notification.Notification) {
 		if metadata.Error != nil {
 			log.Ctx(ctx).Error("received error in message: %v", metadata.Error)
 			return
 		}
 		if data.From == "" {
-			log.Ctx(ctx).Error("no information from which module is send")
+			log.Ctx(ctx).Error("no receiver name given in message: %v", data)
 			return
 		}
 		log.Ctx(ctx).Debug("Got message at %s from %s", metadata.Timestamp.Format("15:04:05"), data.From)
 		switch((*data).Notification) {
 			case inquiry.InquiryRender:
-				payload, ok := data.Payload.(inquiry.InquiryRenderPayload)
-				if !ok && data.From != "" {
-					log.Ctx(ctx).Error("Received invalid payload for NotificationReady: %v", data.Payload)
-					if data.From != "" {
-						h.Error(ctx, data.From, errcore.NotificationPayloadInvalid)
-					}
+				var payload inquiry.InquiryRenderPayload
+				err := mapToStruct(data.Payload, &payload)
+				if err != nil {
+					log.Ctx(ctx).Err(err)
+					h.Error(ctx, data.From, errcore.NotificationPayloadInvalid)
 					return
 				}
 				if !h.IsConfigConform(ctx, payload) {
@@ -85,17 +85,16 @@ func (h *Handler) Start(ctx context.Context) error {
 					}
 					return 
 				}
-				err := h.StartRenderHandshake(h.ctx, data.From, payload)
+				err = h.StartRenderHandshake(h.ctx, data.From, payload)
 				if err != nil {
 					log.Ctx(ctx).Err(err)
 				}
 			case inquiry.InquiryInformation:
-				payload, ok := data.Payload.(inquiry.InquiryInformationPayload)
-				if !ok && data.From != "" {
-					log.Ctx(ctx).Error("Received invalid payload for NotificationReady: %v", data.Payload)
-					if data.From != "" {
-						h.Error(ctx, data.From, errcore.NotificationPayloadInvalid)
-					}
+				var payload inquiry.InquiryInformationPayload
+				err := mapToStruct(data.Payload, &payload)
+				if err != nil {
+					log.Ctx(ctx).Err(err)
+					h.Error(ctx, data.From, errcore.NotificationPayloadInvalid)
 					return
 				}
 				switch (payload.Payload) {
@@ -331,4 +330,12 @@ func (h *Handler) Error(ctx context.Context, to string, errorCore int) {
 
 func (h *Handler) Stop(ctx context.Context) {
 	h.communication.Subscription.Unsubscribe(ctx)
+}
+
+func mapToStruct(m any, out any) error {
+    data, err := json.Marshal(m)
+    if err != nil {
+        return err
+    }
+    return json.Unmarshal(data, out)
 }

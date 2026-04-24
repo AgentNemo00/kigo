@@ -9,7 +9,7 @@ import (
 
 type Communication struct {
 	Pub 		pubsub.Publisher[order.Order]
-	Sub 		pubsub.Subscriber[notification.Notification, order.Order]
+	Sub 		pubsub.Subscriber[notification.Notification]
 	Subscription pubsub.Subscription
 }
 
@@ -18,7 +18,7 @@ func NewCommunication(url string) (*Communication, error) {
 	if err != nil {
 		return nil, err
 	}
-	sub, err := nats.SubscriberWithURL[notification.Notification, order.Order](url)
+	sub, err := nats.SubscriberWithURL[notification.Notification](url)
 	if err != nil {
 		return nil, err
 	}

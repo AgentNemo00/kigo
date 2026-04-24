@@ -11,11 +11,11 @@ import (
 
 
 type PubSub struct {
-	sub pubsub.Subscriber[[]byte, bool]
+	sub pubsub.Subscriber[[]byte]
 }
 
 func NewPubSub(url string) (*PubSub, error) {
-	sub, err := nats.SubscriberWithURL[[]byte, bool](url)
+	sub, err := nats.SubscriberWithURL[[]byte](url)
 	if err != nil {
 		return nil, err
 	}
@@ -48,7 +48,7 @@ func (p *PubSub) Open(ctx context.Context, name string) (*Frame, error) {
 			}
 		},
 	}
-	subscription, err := p.sub.Subscribe(ctx, name, func(ctx context.Context, metadata pubsub.Metadata, data *[]byte, responder pubsub.Responder[bool]) {
+	subscription, err := p.sub.Subscribe(ctx, name, func(ctx context.Context, metadata pubsub.Metadata, data *[]byte) {
 		if metadata.Error != nil {
 			log.Ctx(ctx).Error("received error in message: %v", metadata.Error)
 			frameErr <- metadata.Error
