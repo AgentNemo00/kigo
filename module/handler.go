@@ -5,6 +5,8 @@ import (
 	"sync"
 	"time"
 
+	"encoding/json"
+
 	errcore "github.com/AgentNemo00/kigo-core/errors"
 	"github.com/AgentNemo00/kigo-core/information"
 	"github.com/AgentNemo00/kigo-core/inquiry"
@@ -12,11 +14,9 @@ import (
 	"github.com/AgentNemo00/kigo-core/order"
 	"github.com/AgentNemo00/kigo-core/update"
 	"github.com/AgentNemo00/kigo/pubsub"
-	"github.com/AgentNemo00/sca-instruments/database"
-	"github.com/AgentNemo00/sca-instruments/database/lectors"
 	"github.com/AgentNemo00/sca-instruments/log"
 	ps "github.com/AgentNemo00/sca-instruments/pubsub"
-	"gorm.io/gorm"
+	"github.com/AgentNemo00/sca-instruments/security"
 )
 
 type Handler struct {
@@ -28,15 +28,11 @@ type Handler struct {
 	lastHeartbeatCheck 	time.Time
 	modules 			[]*Module
 	config 				*Config
-	db 					*database.Database
+	db 					*Database
 }
 
 func NewHandler(config *Config) (*Handler, error) {
-	db, err := database.WithLector(lectors.SqliteByPath(config.Database))
-	if err != nil {
-		return nil, err
-	}
-	err = db.ApplySchemas(&Module{})
+	db, err := NewDatabase(config.Database)
 	if err != nil {
 		return nil, err
 	}
@@ -57,21 +53,29 @@ func NewHandler(config *Config) (*Handler, error) {
 func (h *Handler) Start(ctx context.Context) error {
 	h.ctx = ctx
 	h.lastHeartbeatCheck = time.Now()
-	err := h.FindModulesDB(ctx)
+	modules, err := h.db.FindModulesDB(ctx)
 	if err != nil {
 		return err
 	}
+	h.modules = modules
 	subscription, err := h.communication.Sub.Subscribe(ctx, h.commander.Name(), func(ctx context.Context, metadata ps.Metadata, data *notification.Notification, responder ps.Responder[order.Order]) {
 		defer func ()  {
 			h.CheckHeartbeats()
-			h.SaveModulesDB()
+			err := h.db.SaveModulesDB(h.ctx, h.modules)
+			if err != nil {
+				log.Ctx(ctx).Err(err)
+			}
 		}()
 		if metadata.Error != nil {
 			log.Ctx(ctx).Error("received error in message: %v", metadata.Error)
 			return
 		}
+		if data.From == "" {
+			log.Ctx(ctx).Error("no receiver name given in message: %v", data)
+			return
+		}
 		log.Ctx(ctx).Debug("Got message at %s from %s", metadata.Timestamp.Format("15:04:05"), data.From)
-		h.MainServiceWorker(ctx, *data)
+		h.MainServiceWorker(ctx, *data, responder)
 	})
 	if err != nil {
 		return err
@@ -82,44 +86,6 @@ func (h *Handler) Start(ctx context.Context) error {
 
 func (h *Handler) Stop(ctx context.Context) {
 	h.communication.Subscription.Unsubscribe(ctx)
-}
-
-func (h *Handler) FindModulesDB(ctx context.Context) error {
-	modules, err := gorm.G[Module](h.db.DB).Find(ctx)
-	if err != nil {
-		return err
-	}
-	for _, mod := range modules {
-		h.modules = append(h.modules, &mod)
-	}
-	return nil
-}
-
-func (h *Handler) SaveModulesDB() error {
-	h.mu.Lock()
-	defer h.mu.Unlock()
-	for _, mod := range h.modules {
-		if mod.ID == 0 {
-			err := gorm.G[Module](h.db.DB).Create(h.ctx, mod)
-			if err != nil {
-				return err
-			}
-			continue
-		}
-		_, err := gorm.G[Module](h.db.DB).Updates(h.ctx, *mod)
-		if err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func (h *Handler) DeleteModuleDB(ctx context.Context, mod *Module) error {
-	if mod.ID <= 0 {
-		return nil
-	}
-	_, err := gorm.G[Module](h.db.DB).Where("id = ?", mod.ID).Delete(ctx)
-	return err
 }
 
 func (h *Handler) GetModule(id string) (*Module, int) {
@@ -155,79 +121,68 @@ func (h *Handler) DeleteModule(mod *Module) {
 	}
 }
 
-func (h *Handler) MainServiceWorker(ctx context.Context, data notification.Notification) {
+func (h *Handler) MainServiceWorker(ctx context.Context, data notification.Notification, responder ps.Responder[order.Order]) {
+	log.Ctx(ctx).Debug("Got message: %#v", data)
 	switch data.Notification {
 		case notification.NotificationReady:
-			notificationPayload, ok := data.Payload.(notification.NotificationReadyPayload)
-			if !ok && data.From != "" {
-				log.Ctx(ctx).Error("Received invalid payload for NotificationReady: %v", data.Payload)
-				if data.From != "" {
-					h.commander.Error(ctx, data.From, errcore.NotificationPayloadInvalid)
-				}
+			var payload notification.NotificationReadyPayload
+			err := mapToStruct(data.Payload, &payload)
+			if err != nil {
+				log.Ctx(ctx).Err(err)
+				h.commander.Error(ctx, data.From, errcore.NotificationPayloadInvalid)
 				return
 			}
-			h.NotificationReady(ctx, data, notificationPayload)
+			uuid, err := security.UUID()
+			if err != nil {
+				log.Ctx(ctx).Err(err)
+				h.commander.Error(ctx, data.From, errcore.Internal)
+				return				
+			}
+			moduleObj, index, err := h.CreateModule(uuid)
+			if err != nil {
+				log.Ctx(ctx).Err(err)
+				h.commander.Error(ctx, data.From, errcore.Internal)
+				return				
+			}
+			moduleObj.StartUpDuration = payload.Duration
+			moduleObj.Heartbeat = payload.Heartbeat
+			moduleObj.TimeLastUpdate = time.Now()
+			moduleObj.Changes = payload.Changes
+			moduleObj.Name = payload.Name
+			moduleObj.Ready = true
+			h.commander.StartUp(ctx, data.From, order.OrderStartUpPayload{
+				ID: uuid,
+				NumberOfModules: index+1,
+				MessageTo: order.MessageTo{
+					Notification: h.config.Name,
+					Render: h.config.RenderTo,
+				},
+			})
+			log.Ctx(ctx).Debug("Send message to %s", data.From)
 		case notification.NotificationUpdate:
-			if data.From == "" {
-				log.Ctx(ctx).Error("Sender not defined: %v", data.Payload)
-				if data.To != "" {
-					h.commander.Error(ctx, data.From, errcore.KiGoIDInvalid)
-				}
+			var payload notification.NotificationUpdatePayload
+			err := mapToStruct(data.Payload, &payload)
+			if err != nil {
+				log.Ctx(ctx).Err(err)
+				h.commander.Error(ctx, data.From, errcore.NotificationPayloadInvalid)
 				return
 			}
-			notificationPayload, ok := data.Payload.(notification.NotificationUpdatePayload)
-			if !ok && data.From != "" {
-				log.Ctx(ctx).Error("Received invalid payload for NotificationReady: %v", data.Payload)
-				if data.From != "" {
-					h.commander.Error(ctx, data.From, errcore.NotificationPayloadInvalid)
-				}
-				return
-			}
-			h.NotificationUpdate(ctx, data, notificationPayload)
+			h.NotificationUpdate(ctx, data, payload)
 		case inquiry.InquiryInformation:
-			if data.From == "" {
-				log.Ctx(ctx).Error("Sender not defined: %v", data.Payload)
-				if data.To != "" {
-					h.commander.Error(ctx, data.From, errcore.KiGoIDInvalid)
-				}
+			var payload inquiry.InquiryInformationPayload
+			err := mapToStruct(data.Payload, &payload)
+			if err != nil {
+				log.Ctx(ctx).Err(err)
+				h.commander.Error(ctx, data.From, errcore.NotificationPayloadInvalid)
 				return
 			}
-			notificationPayload, ok := data.Payload.(inquiry.InquiryInformationPayload)
-			if !ok && data.From != "" {
-				log.Ctx(ctx).Error("Received invalid payload for NotificationReady: %v", data.Payload)
-				if data.From != "" {
-					h.commander.Error(ctx, data.From, errcore.NotificationPayloadInvalid)
-				}
-				return
-			}
-			h.NotificationInformation(ctx, data, notificationPayload)
+			h.NotificationInformation(ctx, data, payload)
 		default:
 			if data.From != "" {
 				h.commander.Error(ctx, data.From, errcore.NotificationTypeInvalid)
 			}
 	}
 } 
-
-func (h *Handler) NotificationReady(ctx context.Context, data notification.Notification, payload notification.NotificationReadyPayload) {
-	if data.From != "" {
-		// module already exists
-		moduleObj, _ := h.GetModule(data.From)
-		if moduleObj == nil {
-			log.Ctx(ctx).Error("Module not found: %s", data.From)
-			h.commander.Error(ctx, data.From, errcore.ModuleNotFound)
-			return
-		}
-		h.moduleSetReady(ctx, moduleObj, payload.Duration, payload.Heartbeat, payload.Changes, len(h.modules))
-	}
-	// From empty
-	moduleObj, index, err := h.CreateModule(payload.Name)
-	if err != nil {
-		log.Ctx(ctx).Err(err)
-		// not sending anything as no sender information
-		return
-	}
-	h.moduleSetReady(ctx, moduleObj, payload.Duration, payload.Heartbeat, payload.Changes, index+1)
-}
 
 // check if any module is not responsive and delete it, then send shutdown command to it
 func (h *Handler) CheckHeartbeats() {
@@ -245,27 +200,13 @@ func (h *Handler) CheckHeartbeats() {
 	for _, mod := range toDelete {
 		log.Ctx(h.ctx).Info("Module %s is not responsive, deleting it", mod.Name)
 		h.DeleteModule(mod)
-		h.DeleteModuleDB(h.ctx, mod)
+		err := h.db.DeleteModuleDB(h.ctx, mod)
+		if err != nil {
+			log.Ctx(h.ctx).Err(err)
+		}
 		h.commander.Shutdown(h.ctx, mod.UUID)
 	}
 	h.lastHeartbeatCheck = time.Now()
-}
-
-// Set module ready and update its information
-func (h *Handler) moduleSetReady (ctx context.Context, moduleObj *Module, startUpDuration time.Duration, heartbeat time.Duration, changes []string, length int) {
-	moduleObj.StartUpDuration = startUpDuration
-	moduleObj.Heartbeat = heartbeat
-	moduleObj.TimeLastUpdate = time.Now()
-	moduleObj.Changes = changes
-	moduleObj.Ready = true
-	h.commander.StartUp(ctx, moduleObj.UUID, order.OrderStartUpPayload{
-	ID: moduleObj.UUID,
-	NumberOfModules: length,
-	MessageTo: order.MessageTo{
-		Notification: h.commander.Name(),
-		Render: h.config.RenderTo,
-	},
-	})
 }
 
 func (h *Handler) NotificationUpdate(ctx context.Context, data notification.Notification, payload notification.NotificationUpdatePayload) {
@@ -274,9 +215,7 @@ func (h *Handler) NotificationUpdate(ctx context.Context, data notification.Noti
 			modConfig, ok := payload.Payload.(update.Module)
 			if !ok {
 				log.Ctx(ctx).Error("Received invalid payload for update.Config: %v", payload.Payload)
-				if data.From != "" {
-					h.commander.Error(ctx, data.From, errcore.NotificationPayloadInvalid)
-				}
+				h.commander.Error(ctx, data.From, errcore.NotificationPayloadInvalid)
 				return
 			}
 			moduleObj, _ := h.GetModule(data.From)
@@ -363,5 +302,13 @@ func (h *Handler) NotificationInformation(ctx context.Context, data notification
 	default:
 		h.commander.Error(ctx, data.To, errcore.NotificationTypeInvalid)
 	}
+}
+
+func mapToStruct(m any, out any) error {
+    data, err := json.Marshal(m)
+    if err != nil {
+        return err
+    }
+    return json.Unmarshal(data, out)
 }
 
