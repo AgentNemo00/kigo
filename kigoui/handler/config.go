@@ -31,4 +31,13 @@ func (c *Config) Default() {
 	if c.IPCPath == "" {
 		c.IPCPath = "/tmp"
 	} 
+	if c.FPS == 0 {
+		c.FPS = 24
+	}
+	if len(c.Formats) == 0 {
+		c.Formats = []string{ui.RAW}
+	}
+	if len(c.Channels) == 0 {
+		c.Channels = []string{ui.IPC, ui.PubSub}
+	}
 }	

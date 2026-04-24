@@ -265,9 +265,6 @@ func (h *Handler) moduleSetReady (ctx context.Context, moduleObj *Module, startU
 		Notification: h.commander.Name(),
 		Render: h.config.RenderTo,
 	},
-	UIconfiguration: order.UIConfiguration{
-
-	},
 	})
 }
 

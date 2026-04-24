@@ -3,7 +3,6 @@ package service
 import (
 	"context"
 
-	"github.com/AgentNemo00/kigo-core/order"
 	"github.com/AgentNemo00/kigo/config"
 	"github.com/AgentNemo00/kigo/module"
 	"github.com/AgentNemo00/sca-instruments/api/router"
@@ -22,11 +21,6 @@ func NewService(config *config.Config) (*Service, error) {
 		Name: config.Name,
 		PubSubURL: config.PubSubUrl,
 		RenderTo: config.KiGoUI,
-		UIConfiguration: order.UIConfiguration{
-			SupportedFormats: config.SupportedFormats,
-			SupportedChannels: config.SupportedChannels,
-			FPS: config.SupportedFPS,
-		},
 		Database: config.Database,
 	})
 	if err != nil {

@@ -98,23 +98,37 @@ func (h *Handler) Start(ctx context.Context) error {
 					}
 					return
 				}
-				if payload.Type != information.Screen {
-					h.Error(ctx, data.From, errcore.NotificationTypeInvalid)
-					return 
-				}
-				width, height := GetScreenDimensions()
-				err := h.communication.PubModule.Publish(ctx, data.From, order.Order{
-					From: h.config.Name,
-					To: data.From,
-					Order: order.OrderInformation,
-					Payload: information.Window{
-						Width: width,
-						Height: height,
-						MaxFPS: h.config.FPS,
-					},
-				})
-				if err != nil {
-					log.Ctx(ctx).Err(err)
+				switch (payload.Payload) {
+					case information.UI:
+						err := h.communication.PubModule.Publish(ctx, data.From, order.Order{
+							From: h.config.Name,
+							To: data.From,
+							Order: order.OrderInformation,
+							Payload: information.UIPayload{
+								Channels: h.config.Channels,
+								Formats: h.config.Formats,
+							},
+						})
+						if err != nil {
+							log.Ctx(ctx).Err(err)
+						}
+					case information.Screen:
+						width, height := GetScreenDimensions()
+						err := h.communication.PubModule.Publish(ctx, data.From, order.Order{
+							From: h.config.Name,
+							To: data.From,
+							Order: order.OrderInformation,
+							Payload: information.ScreenPayload{
+								Width: width,
+								Height: height,
+								MaxFPS: h.config.FPS,
+							},
+						})
+						if err != nil {
+							log.Ctx(ctx).Err(err)
+						}
+					default:
+						h.Error(ctx, data.From, errcore.NotificationTypeInvalid)
 				}
 			default:
 				h.Error(ctx, data.From, errcore.NotificationTypeInvalid)
