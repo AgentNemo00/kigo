@@ -50,6 +50,7 @@ func (s *Service) Start(ctxN context.Context) error {
 }
 
 func (s *Service) Stop(ctx context.Context) error {
+	s.handlerModule.Stop()
 	if s.handlerRest != nil {
 		err := s.handlerRest.Stop(ctx)
 		if err != nil {

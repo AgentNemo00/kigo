@@ -58,13 +58,10 @@ func (h *Handler) Start(ctx context.Context) error {
 		return err
 	}
 	h.modules = modules
+	h.heartbeatRoutine(ctx)
 	subscription, err := h.communication.Sub.Subscribe(ctx, h.commander.Name(), func(ctx context.Context, metadata ps.Metadata, data *notification.Notification) {
 		defer func ()  {
 			h.CheckHeartbeats()
-			err := h.db.SaveModulesDB(h.ctx, h.modules)
-			if err != nil {
-				log.Ctx(ctx).Err(err)
-			}
 		}()
 		if metadata.Error != nil {
 			log.Ctx(ctx).Error("received error in message: %v", metadata.Error)
@@ -84,8 +81,12 @@ func (h *Handler) Start(ctx context.Context) error {
 	return nil
 }
 
-func (h *Handler) Stop(ctx context.Context) {
-	h.communication.Subscription.Unsubscribe(ctx)
+func (h *Handler) Stop() {
+	err := h.db.SaveModulesDB(h.ctx, h.modules)
+	if err != nil {
+		log.Ctx(h.ctx).Err(err)
+	}
+	h.communication.Subscription.Unsubscribe(h.ctx)
 }
 
 func (h *Handler) GetModule(id string) (*Module, int) {
@@ -138,12 +139,33 @@ func (h *Handler) MainServiceWorker(ctx context.Context, data notification.Notif
 				h.commander.Error(ctx, data.From, errcore.Internal)
 				return				
 			}
-			moduleObj, index, err := h.CreateModule(uuid)
-			if err != nil {
-				log.Ctx(ctx).Err(err)
-				h.commander.Error(ctx, data.From, errcore.Internal)
-				return				
+			var moduleObj *Module
+			moduleObj, _ = h.GetModule(data.From)
+			if moduleObj == nil {
+				// no modules already with these id
+				moduleObj, _, err = h.CreateModule(uuid)
+				if err != nil {
+					log.Ctx(ctx).Err(err)
+					h.commander.Error(ctx, data.From, errcore.Internal)
+					return				
+				}				
+				defer func ()  {
+					err := h.db.CreateModuleDB(ctx, moduleObj)
+					if err != nil {
+						log.Ctx(ctx).Err(err)
+					}
+				}()
+			} else {
+				// already found module, refresh data
+				uuid = data.From
+				defer func ()  {
+					err := h.db.SaveModuleDB(ctx, moduleObj)
+					if err != nil {
+						log.Ctx(ctx).Err(err)
+					}
+				}()
 			}
+
 			moduleObj.StartUpDuration = payload.Duration
 			moduleObj.Heartbeat = payload.Heartbeat
 			moduleObj.TimeLastUpdate = time.Now()
@@ -152,7 +174,7 @@ func (h *Handler) MainServiceWorker(ctx context.Context, data notification.Notif
 			moduleObj.Ready = true
 			h.commander.StartUp(ctx, data.From, order.OrderStartUpPayload{
 				ID: uuid,
-				NumberOfModules: index+1,
+				NumberOfModules: len(h.modules),
 				MessageTo: order.MessageTo{
 					Notification: h.config.Name,
 					Render: h.config.RenderTo,
@@ -184,12 +206,22 @@ func (h *Handler) MainServiceWorker(ctx context.Context, data notification.Notif
 	}
 } 
 
+func (h *Handler) heartbeatRoutine(ctx context.Context) {
+	ticker := time.NewTicker(time.Millisecond*100)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <- ctx.Done():
+			return
+		case <-ticker.C:
+			h.CheckHeartbeats()
+		}
+	}
+}
+
 // check if any module is not responsive and delete it, then send shutdown command to it
 func (h *Handler) CheckHeartbeats() {
-	// Do not need to check more often than every 16ms (60fps)
-	if h.lastHeartbeatCheck.Add(time.Millisecond*16).Before(time.Now()) {
-		return
-	}
 	toDelete := make([]*Module, 0)
 	for _, mod := range h.modules {
 		if !mod.LifecycleOver() {
@@ -229,6 +261,10 @@ func (h *Handler) NotificationUpdate(ctx context.Context, data notification.Noti
 			moduleObj.Changes = modConfig.Changes
 			moduleObj.TimeLastUpdate = time.Now()
 			moduleObj.Heartbeat = modConfig.Heartbeat
+			err = h.db.SaveModuleDB(ctx, moduleObj)
+			if err != nil {
+				log.Ctx(ctx).Err(err)
+			}
 		case update.Heartbeat:
 			modName, ok := payload.Payload.(string)
 			if !ok {

@@ -65,3 +65,12 @@ func (d *Database) DeleteModuleDB(ctx context.Context, mod *Module) error {
 	_, err := gorm.G[Module](d.instance.DB).Where("id = ?", mod.ID).Delete(ctx)
 	return err
 }
+
+func (d *Database) SaveModuleDB(ctx context.Context, mod *Module) error {
+	_, err :=  gorm.G[Module](d.instance.DB).Where("id = ?", mod.ID).Updates(ctx, *mod)
+	return err
+}
+
+func (d *Database) CreateModuleDB(ctx context.Context, mod *Module) error {
+	return gorm.G[Module](d.instance.DB).Create(ctx, mod)
+}
