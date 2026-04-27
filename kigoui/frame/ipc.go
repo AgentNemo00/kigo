@@ -56,6 +56,9 @@ func (i *IPC) Open(ctx context.Context, name string, frameSize int) (*Frame, err
 				log.Ctx(ctx).Err(err)
 			}
 		},
+		name: func () string {
+			return path.Join(i.path, name)
+		},
 	}, nil
 }
 

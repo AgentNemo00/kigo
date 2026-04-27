@@ -16,7 +16,6 @@ import (
 	"github.com/AgentNemo00/kigo/pubsub"
 	"github.com/AgentNemo00/sca-instruments/log"
 	ps "github.com/AgentNemo00/sca-instruments/pubsub"
-	"github.com/AgentNemo00/sca-instruments/security"
 )
 
 type Handler struct {
@@ -71,7 +70,7 @@ func (h *Handler) Start(ctx context.Context) error {
 			log.Ctx(ctx).Error("no receiver name given in message: %v", data)
 			return
 		}
-		log.Ctx(ctx).Debug("Got message at %s from %s", metadata.Timestamp.Format("15:04:05"), data.From)
+		log.Ctx(ctx).Debug("Got message %s from %s", data, data.From)
 		h.MainServiceWorker(ctx, *data)
 	})
 	if err != nil {
@@ -100,10 +99,10 @@ func (h *Handler) GetModule(id string) (*Module, int) {
 	return nil, -1
 }
 
-func (h *Handler) CreateModule(name string) (*Module, int, error) {
+func (h *Handler) CreateModule() (*Module, int, error) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	newMod, err := NewModule(name)
+	newMod, err := NewModule()
 	if err != nil {
 		return nil, -1, err
 	}
@@ -133,18 +132,12 @@ func (h *Handler) MainServiceWorker(ctx context.Context, data notification.Notif
 				h.commander.Error(ctx, data.From, errcore.NotificationPayloadInvalid)
 				return
 			}
-			uuid, err := security.UUID()
-			if err != nil {
-				log.Ctx(ctx).Err(err)
-				h.commander.Error(ctx, data.From, errcore.Internal)
-				return				
-			}
 			log.Ctx(context.Background()).Debug("creating/finding module")
 			var moduleObj *Module
 			moduleObj, _ = h.GetModule(data.From)
 			if moduleObj == nil {
 				// no modules already with these id
-				moduleObj, _, err = h.CreateModule(uuid)
+				moduleObj, _, err = h.CreateModule()
 				if err != nil {
 					log.Ctx(ctx).Err(err)
 					h.commander.Error(ctx, data.From, errcore.Internal)
@@ -158,7 +151,6 @@ func (h *Handler) MainServiceWorker(ctx context.Context, data notification.Notif
 				}()
 			} else {
 				// already found module, refresh data
-				uuid = data.From
 				defer func ()  {
 					err := h.db.SaveModuleDB(ctx, moduleObj)
 					if err != nil {
@@ -174,15 +166,14 @@ func (h *Handler) MainServiceWorker(ctx context.Context, data notification.Notif
 			moduleObj.Name = payload.Name
 			moduleObj.Ready = true
 			h.commander.StartUp(ctx, data.From, order.OrderStartUpPayload{
-				ID: uuid,
+				ID: moduleObj.UUID,
 				NumberOfModules: len(h.modules),
 				MessageTo: order.MessageTo{
 					Notification: h.config.Name,
 					Render: h.config.RenderTo,
 				},
 			})
-			log.Ctx(ctx).Debug("Send message to %s", data.From)
-			log.Ctx(ctx).Info("New module: %s", moduleObj.Name)
+			log.Ctx(ctx).Info("New module: %s with temporary id %s and declared id %s", moduleObj.Name, data.From, moduleObj.UUID)
 		case notification.NotificationUpdate:
 			var payload notification.NotificationUpdatePayload
 			err := mapToStruct(data.Payload, &payload)
@@ -268,22 +259,25 @@ func (h *Handler) NotificationUpdate(ctx context.Context, data notification.Noti
 				log.Ctx(ctx).Err(err)
 			}
 		case update.Heartbeat:
+			log.Ctx(ctx).Debug("heartbeat from %v", data)
 			modName, ok := payload.Payload.(string)
 			if !ok {
 				log.Ctx(ctx).Error("Received invalid payload for update.Config: %v", payload.Payload)
-				h.commander.Error(ctx, data.From, errcore.NotificationPayloadInvalid)
+				//h.commander.Error(ctx, data.From, errcore.NotificationPayloadInvalid)
 				return
 			}
 			moduleObj, _ := h.GetModule(modName)
 			if moduleObj == nil {
-				log.Ctx(ctx).Error("Module not found: %s", data.From)
-				h.commander.Error(ctx, data.From, errcore.ModuleNotFound)
+				log.Ctx(ctx).Error("Module not found: %s", modName)
+				//h.commander.Error(ctx, data.From, errcore.ModuleNotFound)
 				return
 			}
 			moduleObj.TimeLastUpdate = time.Now()
 			log.Ctx(ctx).Debug("heartbeat for %s was update by %s", modName, data.From)
 	default:
-		h.commander.Error(ctx, data.To, errcore.NotificationTypeInvalid)
+		if data.From != h.config.RenderTo {
+			h.commander.Error(ctx, data.To, errcore.NotificationTypeInvalid)
+		}
 	}	
 }
 

@@ -47,6 +47,9 @@ func (p *PubSub) Open(ctx context.Context, name string) (*Frame, error) {
 				}
 			}
 		},
+		name: func () string {
+			return name
+		},
 	}
 	subscription, err := p.sub.Subscribe(ctx, name, func(ctx context.Context, metadata pubsub.Metadata, data *[]byte) {
 		if metadata.Error != nil {

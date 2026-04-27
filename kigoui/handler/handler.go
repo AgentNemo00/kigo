@@ -3,11 +3,11 @@ package handler
 import (
 	"context"
 	"encoding/binary"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"slices"
 	"time"
-	"encoding/json"
 
 	errcore "github.com/AgentNemo00/kigo-core/errors"
 	"github.com/AgentNemo00/kigo-core/information"
@@ -68,8 +68,10 @@ func (h *Handler) Start(ctx context.Context) error {
 			log.Ctx(ctx).Error("no receiver name given in message: %v", data)
 			return
 		}
-		log.Ctx(ctx).Debug("Got message at %s from %s", metadata.Timestamp.Format("15:04:05"), data.From)
-		switch((*data).Notification) {
+		// TODO: debug this
+		// defer h.Heartbeat(h.ctx, data.From)
+		log.Ctx(ctx).Debug("Got message %v from %s", data, data.From)
+		switch(data.Notification) {
 			case inquiry.InquiryRender:
 				var payload inquiry.InquiryRenderPayload
 				err := mapToStruct(data.Payload, &payload)
@@ -83,6 +85,8 @@ func (h *Handler) Start(ctx context.Context) error {
 					h.Error(ctx, data.From, errcore.NotificationPayloadInvalid)
 					return 
 				}
+				// TODO: this
+				h.Heartbeat(h.ctx, data.From)
 				err = h.StartRenderHandshake(h.ctx, data.From, payload)
 				if err != nil {
 					log.Ctx(ctx).Err(err)
@@ -95,8 +99,11 @@ func (h *Handler) Start(ctx context.Context) error {
 					h.Error(ctx, data.From, errcore.NotificationPayloadInvalid)
 					return
 				}
-				switch (payload.Payload) {
+				h.Heartbeat(h.ctx, data.From)
+				log.Ctx(ctx).Debug("inquiry payload: %v", payload)
+				switch (payload.Type) {
 					case information.UI:
+						log.Ctx(ctx).Debug("inquiry ui information")
 						err := h.communication.PubModule.Publish(ctx, data.From, order.Order{
 							From: h.config.Name,
 							To: data.From,
@@ -109,7 +116,9 @@ func (h *Handler) Start(ctx context.Context) error {
 						if err != nil {
 							log.Ctx(ctx).Err(err)
 						}
+						log.Ctx(ctx).Debug("send ui information")
 					case information.Screen:
+						log.Ctx(ctx).Debug("inquiry screen information")
 						width, height := GetScreenDimensions()
 						err := h.communication.PubModule.Publish(ctx, data.From, order.Order{
 							From: h.config.Name,
@@ -124,6 +133,7 @@ func (h *Handler) Start(ctx context.Context) error {
 						if err != nil {
 							log.Ctx(ctx).Err(err)
 						}
+						log.Ctx(ctx).Debug("send screen information")
 					default:
 						h.Error(ctx, data.From, errcore.NotificationTypeInvalid)
 				}
@@ -150,6 +160,7 @@ func (h *Handler) StartRenderHandshake(ctx context.Context, from string, payload
 	packageChan := make(chan paint.Package)
 	var channel *frame.Frame
 	channelClose := func ()  {
+		log.Ctx(ctx).Warn("channel closed")
 		channel.Close()
 		cancel()
 	}
@@ -167,7 +178,7 @@ func (h *Handler) StartRenderHandshake(ctx context.Context, from string, payload
 				log.Ctx(ctx).Error("ipc could not be open")
 				return err
 			}
-
+			log.Ctx(ctx).Info("IPC channel open with name: %s", name)
 		case ui.PubSub:
 			channel, err = h.channelPubSub.Open(ctxTransmission, name)
 			if err != nil {
@@ -175,6 +186,7 @@ func (h *Handler) StartRenderHandshake(ctx context.Context, from string, payload
 				log.Ctx(ctx).Error("ipc could not be open")
 				return err
 			}
+			log.Ctx(ctx).Info("PubSub channel open with name: %s", name)
 		default:
 			h.Error(ctx, from, errcore.Unsupported)
 			return fmt.Errorf("not supported channel")
@@ -188,7 +200,7 @@ func (h *Handler) StartRenderHandshake(ctx context.Context, from string, payload
 				ScreenWidth: width,
 				ScreenHeight: height,
 				MaxFrameSize: frameSize,
-				ChannelName: name,
+				ChannelName: channel.Name(),
 			},
 		})
 		if err != nil {
@@ -202,9 +214,10 @@ func (h *Handler) StartRenderHandshake(ctx context.Context, from string, payload
 }
 
 func (h *Handler) Transmission(ctx context.Context, dataChan chan []byte, frames *frame.Frame, payload inquiry.InquiryRenderPayload, close func()) error {
-	started := time.Now()
-	endAt := started.Add(payload.Time)
-	bufferEmptyTimeout := started
+	started := false
+	startAt := time.Now()
+	endAt := startAt.Add(payload.Time)
+	bufferEmptyTimeout := startAt
 	estimatedWaitingTime := time.Duration(0)
 	if payload.FPS != 0 {
 		estimatedWaitingTime = time.Duration(int(time.Second.Seconds())/payload.FPS)
@@ -218,11 +231,13 @@ func (h *Handler) Transmission(ctx context.Context, dataChan chan []byte, frames
 		}
 		data, err := frames.Read()
 		if err == nil {
+			started = true
 			dataChan <- data
 			bufferEmptyTimeout = time.Now()
 			continue
 		}
-		if errors.Is(err, ringbuffer.ErrBufferEmpty) && bufferEmptyTimeout.Add(payload.Timeout).After(time.Now()) {
+		if errors.Is(err, ringbuffer.ErrBufferEmpty) && bufferEmptyTimeout.Add(payload.Timeout).After(time.Now()) && started {
+			log.Ctx(ctx).Err(ringbuffer.ErrBufferEmpty)
 			close()
 			return fmt.Errorf("transmission frame timeout")
 		}
@@ -231,10 +246,12 @@ func (h *Handler) Transmission(ctx context.Context, dataChan chan []byte, frames
 			close()
 			return nil
 		}
-		if started != endAt && endAt.After(time.Now()) {
+		if startAt != endAt && endAt.After(time.Now()) && started {
 			// error timeout 
 			close()
-			return fmt.Errorf("transmission timeout")
+			err := fmt.Errorf("transmission timeout")
+			log.Ctx(ctx).Err(err)
+			return err
 		}
 		time.Sleep(estimatedWaitingTime)
 	}
@@ -253,7 +270,11 @@ func (h *Handler) Transform(ctx context.Context, dataChan chan []byte, format st
 			positionX := binary.BigEndian.Uint16(dataPackage[0:2])
 			positionY := binary.BigEndian.Uint16(dataPackage[2:4])
 			size := binary.BigEndian.Uint32(dataPackage[4:8])
-			data := dataPackage[8:size+8]
+			if size < 1 {
+				log.Ctx(ctx).Warn("size is zero, no data will be read")
+				continue
+			}
+			data := dataPackage[8:size]
 			if format != ui.RAW {
 				// TODO: transform
 			}
@@ -264,7 +285,6 @@ func (h *Handler) Transform(ctx context.Context, dataChan chan []byte, format st
 			}
 			log.Ctx(ctx).Debug("%v", dataPackage)			 
 		default:
-			log.Ctx(ctx).Debug("transform loop")
 		}
 	}
 }
@@ -281,7 +301,6 @@ func (h *Handler) Draw(ctx context.Context, packageChan chan paint.Package) erro
 			// TODO: draw
 			log.Ctx(ctx).Debug("%v", data)
 		default:
-			log.Ctx(ctx).Debug("draw loop")
 		}
 	}
 }
@@ -300,6 +319,7 @@ func (h *Handler) IsConfigConform(ctx context.Context, payload inquiry.InquiryRe
 }
 
 func (h *Handler) Heartbeat(ctx context.Context, to string) {
+	log.Ctx(ctx).Debug("send heartbeat for %s", to)
 	h.communication.PubKigo.Publish(ctx, h.config.KiGo, notification.Notification{
 		From: h.config.Name,
 		To: h.config.KiGo,

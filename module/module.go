@@ -35,14 +35,13 @@ func (s *StringArray) Scan(value interface{}) error {
     return nil
 }
 
-func NewModule(name string) (*Module, error) {
+func NewModule() (*Module, error) {
 	uuid, err := security.UUID()
 	if err != nil {
 		return nil, err
 	}
 	return &Module{
 		UUID:   uuid,
-		Name: name,
 		CreateAt: time.Now(),
 		TimeLastUpdate: time.Now(),
 	}, nil
