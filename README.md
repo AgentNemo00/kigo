@@ -51,6 +51,10 @@ I will use [GoGPU](https://github.com/gogpu/ui) as soon at is available for the 
 - [ ] Implement KigoMa on remote
 - [ ] Implement remote modules
 
+### Phase 6 Implement cloud native
+
+- [ ] Implement NATS alternative in cloud environment
+
 A list of modules implemented from [this list](https://github.com/MagicMirrorOrg/MagicMirror/wiki/3rd-Party-Modules):
 
 | Module | Implemented |
