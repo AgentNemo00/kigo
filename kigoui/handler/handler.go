@@ -158,7 +158,7 @@ func (h *Handler) StartRenderHandshake(ctx context.Context, from string, payload
 	packageChan := make(chan paint.Package)
 	var channel *frame.Frame
 	channelClose := func ()  {
-		log.Ctx(ctx).Warn("channel closed")
+		log.Ctx(ctx).Info("channel closed")
 		channel.Close()
 		cancel()
 	}
@@ -214,14 +214,15 @@ func (h *Handler) StartRenderHandshake(ctx context.Context, from string, payload
 func (h *Handler) Transmission(ctx context.Context, dataChan chan []byte, frames *frame.Frame, payload inquiry.InquiryRenderPayload, close func()) error {
 	started := false
 	startAt := time.Now()
-	endAt := startAt.Add(payload.Time)
+	endAt := startAt
 	bufferEmptyTimeout := startAt
 	estimatedWaitingTime := time.Duration(0)
 	if payload.FPS != 0 {
-		estimatedWaitingTime = time.Duration(int(time.Second.Seconds())/payload.FPS)
+		estimatedWaitingTime = time.Duration(time.Millisecond*time.Duration(1000/payload.FPS))
 	}
-
+	log.Ctx(ctx).Debug("estimated sleeping: %d", estimatedWaitingTime.Milliseconds())
 	for {
+		log.Ctx(ctx).Debug("transmission loop")
 		select {
 			case <- ctx.Done():
 				return ctx.Err()
@@ -229,22 +230,28 @@ func (h *Handler) Transmission(ctx context.Context, dataChan chan []byte, frames
 		}
 		data, err := frames.Read()
 		if err == nil {
-			started = true
+			log.Ctx(ctx).Debug("read amount of data: %d", len(data))
 			dataChan <- data
 			bufferEmptyTimeout = time.Now()
-			continue
+			if !started {
+				started = true
+				endAt = startAt.Add(payload.Time)
+			}
+		} else {
+			log.Ctx(ctx).Debug("error during transmission")
+			if errors.Is(err, ringbuffer.ErrBufferEmpty) && bufferEmptyTimeout.Add(payload.Timeout).After(time.Now()) && started {
+				log.Ctx(ctx).Err(ringbuffer.ErrBufferEmpty)
+				close()
+				return fmt.Errorf("transmission frame timeout")
+			}
+			if errors.Is(err, ringbuffer.ErrClosed) {
+				// successful
+				log.Ctx(ctx).Debug("successful closed by module")
+				close()
+				return nil
+			}
 		}
-		if errors.Is(err, ringbuffer.ErrBufferEmpty) && bufferEmptyTimeout.Add(payload.Timeout).After(time.Now()) && started {
-			log.Ctx(ctx).Err(ringbuffer.ErrBufferEmpty)
-			close()
-			return fmt.Errorf("transmission frame timeout")
-		}
-		if errors.Is(err, ringbuffer.ErrClosed) {
-			// successful
-			close()
-			return nil
-		}
-		if startAt != endAt && endAt.After(time.Now()) && started {
+		if startAt != endAt && endAt.Before(time.Now()) && started {
 			// error timeout 
 			close()
 			err := fmt.Errorf("transmission timeout")
@@ -253,7 +260,6 @@ func (h *Handler) Transmission(ctx context.Context, dataChan chan []byte, frames
 		}
 		time.Sleep(estimatedWaitingTime)
 	}
-	
 }
 
 func (h *Handler) Transform(ctx context.Context, dataChan chan []byte, format string, packageChan chan paint.Package) error {
