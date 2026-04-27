@@ -68,7 +68,6 @@ func (h *Handler) Start(ctx context.Context) error {
 			log.Ctx(ctx).Error("no receiver name given in message: %v", data)
 			return
 		}
-		// TODO: debug this
 		// defer h.Heartbeat(h.ctx, data.From)
 		log.Ctx(ctx).Debug("Got message %v from %s", data, data.From)
 		switch(data.Notification) {
@@ -85,7 +84,6 @@ func (h *Handler) Start(ctx context.Context) error {
 					h.Error(ctx, data.From, errcore.NotificationPayloadInvalid)
 					return 
 				}
-				// TODO: this
 				h.Heartbeat(h.ctx, data.From)
 				err = h.StartRenderHandshake(h.ctx, data.From, payload)
 				if err != nil {
@@ -274,7 +272,9 @@ func (h *Handler) Transform(ctx context.Context, dataChan chan []byte, format st
 				log.Ctx(ctx).Warn("size is zero, no data will be read")
 				continue
 			}
-			data := dataPackage[8:size]
+			log.Ctx(ctx).Debug("size of data: %d", size)
+			data := dataPackage[8:size+8]
+			log.Ctx(ctx).Debug("data: %v", data)
 			if format != ui.RAW {
 				// TODO: transform
 			}
@@ -283,7 +283,7 @@ func (h *Handler) Transform(ctx context.Context, dataChan chan []byte, format st
 				PositionY: int(positionY),
 				Data: data,
 			}
-			log.Ctx(ctx).Debug("%v", dataPackage)			 
+			log.Ctx(ctx).Debug("received data package %v, %s", dataPackage, string(data))			 
 		default:
 		}
 	}
@@ -299,7 +299,7 @@ func (h *Handler) Draw(ctx context.Context, packageChan chan paint.Package) erro
 				return fmt.Errorf("channel draw closed")
 			}
 			// TODO: draw
-			log.Ctx(ctx).Debug("%v", data)
+			log.Ctx(ctx).Debug("draw %v, %s", data, string(data.Data))
 		default:
 		}
 	}
