@@ -1,10 +1,14 @@
 package handler
 
 import (
-	"github.com/kbinani/screenshot"
+	"golang.org/x/term"
+	"os"
 )
 
 func GetScreenDimensions() (int, int) {
-	bounds := screenshot.GetDisplayBounds(screenshot.NumActiveDisplays())
-	return bounds.Dx(), bounds.Dy()
+	width, height, err := term.GetSize(int(os.Stdout.Fd()))
+	if err != nil {
+		return 0, 0
+	}
+	return width, height
 }

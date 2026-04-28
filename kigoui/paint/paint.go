@@ -1,7 +1,10 @@
 package paint
 
 type Package struct {
-	PositionX int
-	PositionY int
-	Data     []byte
+	ID 			string
+	PositionX 	int
+	PositionY 	int
+	Width 		int
+	Height 		int
+	Data     	[]byte
 }

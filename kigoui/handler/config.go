@@ -3,13 +3,14 @@ package handler
 import "github.com/AgentNemo00/kigo-core/ui"
 
 type Config struct {
-	Name 		string
-	Formats 	[]string
-	Channels 	[]string
-	FPS 		int
-	PubSubUrl 	string
-	KiGo 		string
-	IPCPath 	string
+	Name 					string
+	Formats 				[]string
+	Channels 				[]string
+	FPS 					int
+	PubSubUrl 				string
+	KiGo 					string
+	IPCPath 				string
+	OverallPackageBuffer 	int      // recommended minimum the amounts of modules
 }
 
 func (c *Config) Default() {
@@ -39,5 +40,8 @@ func (c *Config) Default() {
 	}
 	if len(c.Channels) == 0 {
 		c.Channels = []string{ui.IPC, ui.PubSub}
+	}
+	if c.OverallPackageBuffer == 0 {
+		c.OverallPackageBuffer = 3
 	}
 }	

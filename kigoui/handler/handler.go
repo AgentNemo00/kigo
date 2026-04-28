@@ -19,6 +19,7 @@ import (
 	"github.com/AgentNemo00/kigo-ui/frame"
 	"github.com/AgentNemo00/kigo-ui/paint"
 	"github.com/AgentNemo00/kigo-ui/pubsub"
+	"github.com/AgentNemo00/kigo-ui/window"
 	"github.com/AgentNemo00/sca-instruments/log"
 	ps "github.com/AgentNemo00/sca-instruments/pubsub"
 	"github.com/AgentNemo00/sca-instruments/security"
@@ -31,9 +32,12 @@ type Handler struct {
 	channelIPC 			*frame.IPC
 	channelPubSub		*frame.PubSub
 	ctx 				context.Context
+
+	pkgChan           	chan paint.Package
+	window 				*window.Window
 }
 
-func NewHandler(config *Config) (*Handler, error) {
+func NewHandler(config *Config, window *window.Window) (*Handler, error) {
 	communication, err := pubsub.NewCommunication(config.PubSubUrl)
 	if err != nil {
 		return nil, err
@@ -50,15 +54,18 @@ func NewHandler(config *Config) (*Handler, error) {
 		return nil, err
 	}
 	return &Handler{
-		communication: communication,
-		config: config,
-		channelIPC: channelIPC,
-		channelPubSub: channelPubSub,
+		communication: 	communication,
+		config: 		config,
+		channelIPC: 	channelIPC,
+		channelPubSub: 	channelPubSub,
+		window: 		window,
+		pkgChan: 		make(chan paint.Package),
 	}, nil
 }
 
 func (h *Handler) Start(ctx context.Context) error {
 	h.ctx = ctx
+	go h.Draw(ctx, h.window, h.pkgChan)
 	subscription, err := h.communication.Sub.Subscribe(ctx, h.config.Name, func(ctx context.Context, metadata ps.Metadata, data *notification.Notification) {
 		if metadata.Error != nil {
 			log.Ctx(ctx).Error("received error in message: %v", metadata.Error)
@@ -154,8 +161,7 @@ func (h *Handler) StartRenderHandshake(ctx context.Context, from string, payload
 	}
 
 	ctxTransmission, cancel := context.WithCancel(ctx)
-	dataChan := make(chan []byte)
-	packageChan := make(chan paint.Package)
+	dataChan := make(chan Data)
 	var channel *frame.Frame
 	channelClose := func ()  {
 		log.Ctx(ctx).Info("channel closed")
@@ -205,13 +211,12 @@ func (h *Handler) StartRenderHandshake(ctx context.Context, from string, payload
 			log.Ctx(ctx).Err(err)
 			return err
 		}
-		go h.Draw(ctxTransmission, packageChan)
-		go h.Transform(ctxTransmission, dataChan, payload.Format, packageChan)
+		go h.Transform(ctxTransmission, dataChan, payload.Format, h.pkgChan)
 		go h.Transmission(ctxTransmission, dataChan, channel, payload, channelClose)
 		return nil
 }
 
-func (h *Handler) Transmission(ctx context.Context, dataChan chan []byte, frames *frame.Frame, payload inquiry.InquiryRenderPayload, close func()) error {
+func (h *Handler) Transmission(ctx context.Context, dataChan chan Data, frames *frame.Frame, payload inquiry.InquiryRenderPayload, close func()) error {
 	started := false
 	startAt := time.Now()
 	endAt := startAt
@@ -231,7 +236,10 @@ func (h *Handler) Transmission(ctx context.Context, dataChan chan []byte, frames
 		data, err := frames.Read()
 		if err == nil {
 			log.Ctx(ctx).Debug("read amount of data: %d", len(data))
-			dataChan <- data
+			dataChan <- Data{
+				ID: frames.Name(),
+				Data: data,
+			}
 			bufferEmptyTimeout = time.Now()
 			if !started {
 				started = true
@@ -262,7 +270,7 @@ func (h *Handler) Transmission(ctx context.Context, dataChan chan []byte, frames
 	}
 }
 
-func (h *Handler) Transform(ctx context.Context, dataChan chan []byte, format string, packageChan chan paint.Package) error {
+func (h *Handler) Transform(ctx context.Context, dataChan chan Data, format string, packageChan chan paint.Package) error {
 	for {
 		select {
 		case <- ctx.Done():
@@ -271,23 +279,28 @@ func (h *Handler) Transform(ctx context.Context, dataChan chan []byte, format st
 			if !ok {
 				return fmt.Errorf("channel transform closed")
 			}
-			positionX := binary.BigEndian.Uint16(dataPackage[0:2])
-			positionY := binary.BigEndian.Uint16(dataPackage[2:4])
-			size := binary.BigEndian.Uint32(dataPackage[4:8])
+			positionX := binary.BigEndian.Uint16(dataPackage.Data[0:2])
+			positionY := binary.BigEndian.Uint16(dataPackage.Data[2:4])
+			width := binary.BigEndian.Uint16(dataPackage.Data[4:6])
+			height := binary.BigEndian.Uint16(dataPackage.Data[6:8])
+			size := binary.BigEndian.Uint32(dataPackage.Data[8:12])
 			if size < 1 {
 				log.Ctx(ctx).Warn("size is zero, no data will be read")
 				continue
 			}
 			log.Ctx(ctx).Debug("size of data: %d", size)
-			data := dataPackage[8:size+8]
+			data := dataPackage.Data[12:size+12]
 			log.Ctx(ctx).Debug("data: %v", data)
 			if format != ui.RAW {
 				// TODO: transform
 			}
 			packageChan <- paint.Package{
-				PositionX: int(positionX),
-				PositionY: int(positionY),
-				Data: data,
+				ID: 		dataPackage.ID,	
+				PositionX: 	int(positionX),
+				PositionY: 	int(positionY),
+				Width: 		int(width),
+				Height: 	int(height),
+				Data: 		data,
 			}
 			log.Ctx(ctx).Debug("received data package %v, %s", dataPackage, string(data))			 
 		default:
@@ -295,21 +308,26 @@ func (h *Handler) Transform(ctx context.Context, dataChan chan []byte, format st
 	}
 }
 
-func (h *Handler) Draw(ctx context.Context, packageChan chan paint.Package) error {
-		for {
+func (h *Handler) Draw(ctx context.Context, window *window.Window, packageChan chan paint.Package) error {
+	// This does not allow different FPS settings. Request a drawing ID in the UI handshake
+	for {
 		select {
-		case <- ctx.Done():
-			return ctx.Err()
-		case data, ok := <- packageChan:
-			if !ok {
-				return fmt.Errorf("channel draw closed")
+			case <- ctx.Done():
+				return ctx.Err()
+			case pkg, ok := <- packageChan:
+				if !ok {
+					return nil
+				}
+				err := window.Add(pkg)
+				if err != nil {
+					log.Ctx(ctx).Err(err)
+					return err
+				} 
+				window.Draw()
 			}
-			// TODO: draw
-			log.Ctx(ctx).Debug("draw %v, %s", data, string(data.Data))
-		default:
 		}
-	}
 }
+
 
 func (h *Handler) IsConfigConform(ctx context.Context, payload inquiry.InquiryRenderPayload) bool {
 	if h.config.FPS < payload.FPS {

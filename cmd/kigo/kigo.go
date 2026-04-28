@@ -12,6 +12,7 @@ import (
 )
 
 func main() {
+	log.Dev = true
 	c := &config.Config{}
 	err := configuration.ByEnv(c)
 	if err != nil {
