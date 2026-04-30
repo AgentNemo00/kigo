@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/binary"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"slices"
 	"time"
@@ -23,7 +22,6 @@ import (
 	"github.com/AgentNemo00/sca-instruments/log"
 	ps "github.com/AgentNemo00/sca-instruments/pubsub"
 	"github.com/AgentNemo00/sca-instruments/security"
-	ringbuffer "github.com/EBWi11/mmap_ringbuffer"
 )
 
 type Handler struct {
@@ -75,7 +73,6 @@ func (h *Handler) Start(ctx context.Context) error {
 			log.Ctx(ctx).Error("no receiver name given in message: %v", data)
 			return
 		}
-		// defer h.Heartbeat(h.ctx, data.From)
 		log.Ctx(ctx).Debug("Got message %v from %s", data, data.From)
 		switch(data.Notification) {
 			case inquiry.InquiryRender:
@@ -91,7 +88,7 @@ func (h *Handler) Start(ctx context.Context) error {
 					h.Error(ctx, data.From, errcore.NotificationPayloadInvalid)
 					return 
 				}
-				h.Heartbeat(h.ctx, data.From)
+				go h.Heartbeat(h.ctx, data.From)
 				err = h.StartRenderHandshake(h.ctx, data.From, payload)
 				if err != nil {
 					log.Ctx(ctx).Err(err)
@@ -104,7 +101,7 @@ func (h *Handler) Start(ctx context.Context) error {
 					h.Error(ctx, data.From, errcore.NotificationPayloadInvalid)
 					return
 				}
-				h.Heartbeat(h.ctx, data.From)
+				go h.Heartbeat(h.ctx, data.From)
 				log.Ctx(ctx).Debug("inquiry payload: %v", payload)
 				switch (payload.Type) {
 					case information.UI:
@@ -150,7 +147,7 @@ func (h *Handler) Start(ctx context.Context) error {
 		return err
 	}
 	h.communication.Subscription = subscription
-	return nil
+	return h.window.Start(ctx)
 }
 
 func (h *Handler) StartRenderHandshake(ctx context.Context, from string, payload inquiry.InquiryRenderPayload) error {
@@ -166,6 +163,7 @@ func (h *Handler) StartRenderHandshake(ctx context.Context, from string, payload
 	channelClose := func ()  {
 		log.Ctx(ctx).Info("channel closed")
 		channel.Close()
+		close(dataChan)
 		cancel()
 	}
 	frameSize := payload.MaxFrameSize
@@ -174,9 +172,14 @@ func (h *Handler) StartRenderHandshake(ctx context.Context, from string, payload
 		width, height := GetScreenDimensions()
 		frameSize = width * height + 8 // add header variables
 	}
+	objID := uint32(payload.ObjectID)
+	if objID == 0 {
+		objID = h.window.EnsureID()
+	}
 	switch(payload.Channel) {
 		case ui.IPC:
-			channel, err = h.channelIPC.Open(ctxTransmission, name, frameSize)
+			log.Ctx(ctx).Debug("choose channel ipc")
+			channel, err = h.channelIPC.Open(ctxTransmission, name, frameSize, payload.Timeout, payload.Time)
 			if err != nil {
 				h.Error(ctx, from, errcore.Channel)
 				log.Ctx(ctx).Error("ipc could not be open")
@@ -184,7 +187,8 @@ func (h *Handler) StartRenderHandshake(ctx context.Context, from string, payload
 			}
 			log.Ctx(ctx).Info("IPC channel open with name: %s", name)
 		case ui.PubSub:
-			channel, err = h.channelPubSub.Open(ctxTransmission, name)
+			log.Ctx(ctx).Debug("choose channel pubsub")
+			channel, err = h.channelPubSub.Open(ctxTransmission, name, payload.Timeout, payload.Time)
 			if err != nil {
 				h.Error(ctx, from, errcore.Channel)
 				log.Ctx(ctx).Error("ipc could not be open")
@@ -205,6 +209,7 @@ func (h *Handler) StartRenderHandshake(ctx context.Context, from string, payload
 				ScreenHeight: height,
 				MaxFrameSize: frameSize,
 				ChannelName: channel.Name(),
+				ObjectID: int(objID),
 			},
 		})
 		if err != nil {
@@ -216,94 +221,74 @@ func (h *Handler) StartRenderHandshake(ctx context.Context, from string, payload
 		return nil
 }
 
-func (h *Handler) Transmission(ctx context.Context, dataChan chan Data, frames *frame.Frame, payload inquiry.InquiryRenderPayload, close func()) error {
-	started := false
-	startAt := time.Now()
-	endAt := startAt
-	bufferEmptyTimeout := startAt
+func (h *Handler) Transmission(ctx context.Context, dataChan chan Data, frames *frame.Frame, payload inquiry.InquiryRenderPayload, close func()) {
 	estimatedWaitingTime := time.Duration(0)
 	if payload.FPS != 0 {
 		estimatedWaitingTime = time.Duration(time.Millisecond*time.Duration(1000/payload.FPS))
 	}
-	log.Ctx(ctx).Debug("estimated sleeping: %d", estimatedWaitingTime.Milliseconds())
+	log.Ctx(ctx).Info("estimated sleeping: %d", estimatedWaitingTime.Milliseconds())
 	for {
-		log.Ctx(ctx).Debug("transmission loop")
 		select {
 			case <- ctx.Done():
-				return ctx.Err()
+				return
 			default:
+				data, err := frames.Read()
+				if err != nil {
+					close()
+					log.Ctx(ctx).Err(err)
+					return
+				}
+				if data == nil {
+					continue
+				}
+				log.Ctx(ctx).Debug("got data to transmite from %s with a length of %d", frames.Name(), len(data))
+				dataChan <- Data{
+					Data: data,
+				}
+				time.Sleep(estimatedWaitingTime)
 		}
-		data, err := frames.Read()
-		if err == nil {
-			log.Ctx(ctx).Debug("read amount of data: %d", len(data))
-			dataChan <- Data{
-				ID: frames.Name(),
-				Data: data,
-			}
-			bufferEmptyTimeout = time.Now()
-			if !started {
-				started = true
-				endAt = startAt.Add(payload.Time)
-			}
-		} else {
-			log.Ctx(ctx).Debug("error during transmission")
-			if errors.Is(err, ringbuffer.ErrBufferEmpty) && bufferEmptyTimeout.Add(payload.Timeout).After(time.Now()) && started {
-				log.Ctx(ctx).Err(ringbuffer.ErrBufferEmpty)
-				close()
-				return fmt.Errorf("transmission frame timeout")
-			}
-			if errors.Is(err, ringbuffer.ErrClosed) {
-				// successful
-				log.Ctx(ctx).Debug("successful closed by module")
-				close()
-				return nil
-			}
-		}
-		if startAt != endAt && endAt.Before(time.Now()) && started {
-			// error timeout 
-			close()
-			err := fmt.Errorf("transmission timeout")
-			log.Ctx(ctx).Err(err)
-			return err
-		}
-		time.Sleep(estimatedWaitingTime)
 	}
 }
 
-func (h *Handler) Transform(ctx context.Context, dataChan chan Data, format string, packageChan chan paint.Package) error {
+func (h *Handler) Transform(ctx context.Context, dataChan chan Data, format string, packageChan chan paint.Package) {
 	for {
 		select {
-		case <- ctx.Done():
-			return ctx.Err()
-		case dataPackage, ok := <- dataChan:
-			if !ok {
-				return fmt.Errorf("channel transform closed")
-			}
-			positionX := binary.BigEndian.Uint16(dataPackage.Data[0:2])
-			positionY := binary.BigEndian.Uint16(dataPackage.Data[2:4])
-			width := binary.BigEndian.Uint16(dataPackage.Data[4:6])
-			height := binary.BigEndian.Uint16(dataPackage.Data[6:8])
-			size := binary.BigEndian.Uint32(dataPackage.Data[8:12])
-			if size < 1 {
-				log.Ctx(ctx).Warn("size is zero, no data will be read")
-				continue
-			}
-			log.Ctx(ctx).Debug("size of data: %d", size)
-			data := dataPackage.Data[12:size+12]
-			log.Ctx(ctx).Debug("data: %v", data)
-			if format != ui.RAW {
-				// TODO: transform
-			}
-			packageChan <- paint.Package{
-				ID: 		dataPackage.ID,	
-				PositionX: 	int(positionX),
-				PositionY: 	int(positionY),
-				Width: 		int(width),
-				Height: 	int(height),
-				Data: 		data,
-			}
-			log.Ctx(ctx).Debug("received data package %v, %s", dataPackage, string(data))			 
-		default:
+			case <- ctx.Done():
+				return
+			case dataPackage, ok := <- dataChan:
+				if !ok {
+					log.Ctx(ctx).Error("channel transform closed")
+					return
+				}
+				if dataPackage.Data == nil {
+					log.Ctx(ctx).Error("transform data empty")
+					return
+				}
+				id := binary.BigEndian.Uint32(dataPackage.Data[0:4])
+				log.Ctx(ctx).Debug("got data to transform from %d", id)
+				positionX := binary.BigEndian.Uint16(dataPackage.Data[4:6])
+				positionY := binary.BigEndian.Uint16(dataPackage.Data[6:8])
+				width := binary.BigEndian.Uint16(dataPackage.Data[8:10])
+				height := binary.BigEndian.Uint16(dataPackage.Data[10:12])
+				size := binary.BigEndian.Uint32(dataPackage.Data[12:16])
+				log.Ctx(ctx).Debug("size of data from %d: %d", id, size)
+				data := make([]byte, 0)
+				if size > 0 {
+					data = dataPackage.Data[14:size+14]
+				}
+				if format != ui.RAW {
+					// TODO: transform
+				}
+				log.Ctx(ctx).Debug("received data package %d, on position %d, %d and dimensions %d, %d", id, positionX, positionY, width, height)			 
+				packageChan <- paint.Package{
+					ID: 		id,	
+					PositionX: 	int(positionX),
+					PositionY: 	int(positionY),
+					Width: 		int(width),
+					Height: 	int(height),
+					Data: 		data,
+				}
+			default:
 		}
 	}
 }
@@ -318,11 +303,18 @@ func (h *Handler) Draw(ctx context.Context, window *window.Window, packageChan c
 				if !ok {
 					return nil
 				}
-				err := window.Add(pkg)
-				if err != nil {
-					log.Ctx(ctx).Err(err)
-					return err
-				} 
+				log.Ctx(ctx).Debug("got data to draw from %d", pkg.ID)
+				if len(pkg.Data) == 0 {
+					log.Ctx(ctx).Debug("Remove id %d", pkg.ID)
+					window.Remove(pkg.ID)
+				} else {
+					err := window.Add(pkg)
+					if err != nil {
+						log.Ctx(ctx).Err(err)
+						return err
+					} 
+					log.Ctx(ctx).Debug("Add id %d", pkg.ID)
+				}
 				window.Draw()
 			}
 		}
@@ -371,6 +363,7 @@ func (h *Handler) Error(ctx context.Context, to string, errorCore int) {
 }
 
 func (h *Handler) Stop(ctx context.Context) {
+	h.window.Stop()
 	h.communication.Subscription.Unsubscribe(ctx)
 }
 

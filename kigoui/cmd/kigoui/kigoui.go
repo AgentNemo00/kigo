@@ -18,7 +18,7 @@ func main() {
 		log.Ctx(ctx).Err(err)
 		return
 	}
-	
+
 	c := &handler.Config{}
 	err = configuration.ByEnv(c)
 	if err != nil {
@@ -31,19 +31,19 @@ func main() {
 		log.Ctx(ctx).Err(err)
 		return
 	}
-	
 	containerization.Callback(func ()  {
 		app.Stop(ctx)
-		w.Stop()
 		cancel()
 	})
 	
 	go containerization.Interrupt(func() {})
+	log.Ctx(ctx).Debug("starting application")
 	err = app.Start(ctx)
 	if err != nil {
 		log.Ctx(ctx).Err(err)
 		return
 	}
+	log.Ctx(ctx).Debug("finishing application")
 	<- ctx.Done()
 }
 

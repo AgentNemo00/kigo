@@ -3,6 +3,7 @@ package window
 import (
 	"context"
 	"image"
+	"math/rand"
 	"sync"
 
 	"github.com/AgentNemo00/kigo-ui/paint"
@@ -15,18 +16,20 @@ import (
 type Window struct {
 	app 	*gogpu.App
 	mu 		*sync.Mutex
-	frames 	*map[string]Frame
+	frames 	*map[uint32]Frame
+	saved   []uint32
+	savedFor uint32
 }
 
 func NewWindow(ctx context.Context) (*Window ,error) {
-	w := &Window{}
+	w := &Window{saved: make([]uint32, 0), savedFor: rand.Uint32()}
 	app := gogpu.NewApp(gogpu.DefaultConfig().
 		WithTitle(" ").
 		WithSize(1080, 900). // TODO: make automated fullscreen
 		WithContinuousRender(false))
 	var canvas *ggcanvas.Canvas
 	mu := new(sync.Mutex)
-	frames := make(map[string]Frame, 0)
+	frames := make(map[uint32]Frame, 0)
 	w.app = app
 	w.frames = &frames
 	w.mu = mu
@@ -80,7 +83,9 @@ func NewWindow(ctx context.Context) (*Window ,error) {
 		gg.CloseAccelerator()
 		if canvas != nil {
 			err := canvas.Close()
-			log.Ctx(ctx).Err(err)
+			if err != nil {
+				log.Ctx(ctx).Err(err)
+			}
 		}
 	})
 	return w, nil
@@ -90,13 +95,12 @@ func (w *Window) Stop() {
 	w.app.Close()
 }
 
-func (w *Window) Start(ctx context.Context) {
-	if err := w.app.Run(); err != nil {
-		log.Ctx(ctx).Err(err)
-	}
+func (w *Window) Start(ctx context.Context) error {
+	return w.app.Run()
 }
 
 func (w *Window) Draw() {
+	defer w.ResetEnsurance()
 	w.app.RequestRedraw()
 }
 
@@ -108,17 +112,20 @@ func (w *Window) Add(pkg paint.Package) error {
 	}
 
 	w.mu.Lock()
+	defer w.ResetEnsurance()
 	defer w.mu.Unlock()
 	(*w.frames)[pkg.ID] = Frame{
 		Data: img,
 		PositionX: pkg.PositionX,
 		PositionY: pkg.PositionY,
 	}
-
+	w.ClearEnsurance(pkg.ID)
+	
 	return nil
 }
 
-func (w *Window) Remove(id string) {
+func (w *Window) Remove(id uint32) {
+	defer w.ResetEnsurance()
 	delete(*w.frames, id)
 }
 
@@ -127,5 +134,46 @@ func (w *Window) Clear() {
 	defer w.mu.Unlock()
 	for k := range *w.frames {
 		delete(*w.frames, k)
+	}
+}
+
+func (w *Window) EnsureID() uint32 {
+	w.mu.Lock()
+	defer w.ResetEnsurance()
+	defer w.mu.Unlock()
+	l: for {
+		id := rand.Uint32()
+		for k := range *w.frames {
+			if k == id {
+				continue l
+			}
+		}
+		for _, k := range w.saved {
+			if k == id {
+				continue l
+			}
+		}
+		w.saved = append(w.saved, id)
+		return id
+	}
+}
+
+func (w *Window) ResetEnsurance() {
+	w.savedFor--
+	if w.savedFor <= 0 {
+		w.mu.Lock()
+		w.saved = make([]uint32, 0)
+		w.mu.Unlock()
+	}
+	w.savedFor = rand.Uint32()
+}
+
+func (w *Window) ClearEnsurance(id uint32) {
+	for i, k := range w.saved {
+		if id == k {
+			w.saved[i] = w.saved[len(w.saved)-1]
+            w.saved =  w.saved[:len(w.saved)-1]
+			return
+		}
 	}
 }

@@ -2,7 +2,7 @@ package frame
 
 import (
 	"context"
-	"fmt"
+	"time"
 
 	"github.com/AgentNemo00/sca-instruments/log"
 	"github.com/AgentNemo00/sca-instruments/pubsub"
@@ -24,10 +24,16 @@ func NewPubSub(url string) (*PubSub, error) {
 	}, nil
 }
 
-func (p *PubSub) Open(ctx context.Context, name string) (*Frame, error) {
+func (p *PubSub) Open(ctx context.Context, name string, timeoutPerRead time.Duration, timeoutTotal time.Duration) (*Frame, error) {
 	frameChan := make(chan []byte)
 	frameErr := make(chan error)
 	frameHandler := &Frame{
+		started: false,
+		startAt: time.Now(),
+		endAt: time.Now(),
+		bufferEmptyTimeout: time.Now(),
+		timeoutPerRead: timeoutPerRead,
+		timeoutTotal: timeoutTotal,
 		read: func() ([]byte, error) {
 			for {
 				// blocking
@@ -36,12 +42,12 @@ func (p *PubSub) Open(ctx context.Context, name string) (*Frame, error) {
 					return nil, ctx.Err()
 				case data, ok := <- frameChan:
 					if !ok {
-						return nil, fmt.Errorf("data chan closed")
+						return nil, ErrClosed
 					}
 					return data, nil
 				case data, ok := <- frameErr:
 					if !ok {
-						return nil, fmt.Errorf("err chan closed")
+						return nil, ErrClosed
 					}
 					return nil, data
 				}
@@ -64,6 +70,8 @@ func (p *PubSub) Open(ctx context.Context, name string) (*Frame, error) {
 	}
 	frameHandler.close = func ()  {
 		subscription.Unsubscribe(ctx)
+		close(frameChan)
+		close(frameErr)
 	}
 	return frameHandler, nil
 }

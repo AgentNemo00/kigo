@@ -2,8 +2,10 @@ package frame
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path"
+	"time"
 
 	"github.com/AgentNemo00/sca-instruments/log"
 	"github.com/EBWi11/mmap_ringbuffer"
@@ -23,12 +25,18 @@ func NewIPC(path string) (*IPC, error) {
 	return &IPC{path: path}, nil
 }
 
-func (i *IPC) Open(ctx context.Context, name string, frameSize int) (*Frame, error) {
+func (i *IPC) Open(ctx context.Context, name string, frameSize int, timeoutPerRead time.Duration, timeoutTotal time.Duration) (*Frame, error) {
 	rb, err := ringbuffer.NewRingBuffer(path.Join(i.path, name), frameSize+8, true)
     if err != nil {
         return nil, err
     }
 	return &Frame{
+		started: false,
+		startAt: time.Now(),
+		endAt: time.Now(),
+		bufferEmptyTimeout: time.Now(),
+		timeoutPerRead: timeoutPerRead,
+		timeoutTotal: timeoutTotal,
 		read: func () ([]byte, error) {
 		for {
 			// blocking
@@ -37,14 +45,14 @@ func (i *IPC) Open(ctx context.Context, name string, frameSize int) (*Frame, err
 				return nil, ctx.Err()
 			default:
 				msg, err := rb.ReadMsg()
-				if err == ringbuffer.ErrBufferEmpty {
-					continue
-				}
-				if err == ringbuffer.ErrClosed {
-					return nil, nil
-				}
 				if err != nil {
-					return nil, err
+					if errors.Is(err, ringbuffer.ErrBufferEmpty) {
+						return nil, ErrEmpty
+					}else if errors.Is(err, ringbuffer.ErrClosed) {
+						return nil, ErrClosed
+					} else {
+						return nil, err
+					}
 				}
 				return msg, nil
 			}

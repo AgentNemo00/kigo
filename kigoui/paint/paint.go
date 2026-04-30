@@ -1,7 +1,7 @@
 package paint
 
 type Package struct {
-	ID 			string
+	ID 			uint32
 	PositionX 	int
 	PositionY 	int
 	Width 		int
