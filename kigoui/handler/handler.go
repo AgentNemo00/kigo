@@ -121,7 +121,7 @@ func (h *Handler) Start(ctx context.Context) error {
 						log.Ctx(ctx).Debug("send ui information")
 					case information.Screen:
 						log.Ctx(ctx).Debug("inquiry screen information")
-						width, height := GetScreenDimensions()
+						width, height := h.window.Size()
 						err := h.communication.PubModule.Publish(ctx, data.From, order.Order{
 							From: h.config.Name,
 							To: data.From,
@@ -169,7 +169,7 @@ func (h *Handler) StartRenderHandshake(ctx context.Context, from string, payload
 	frameSize := payload.MaxFrameSize
 	if frameSize <= 0 {
 		// no frame size set. maximal possible frame size set
-		width, height := GetScreenDimensions()
+		width, height := h.window.Size()
 		frameSize = width * height + 8 // add header variables
 	}
 	objID := uint32(payload.ObjectID)
@@ -199,7 +199,7 @@ func (h *Handler) StartRenderHandshake(ctx context.Context, from string, payload
 			h.Error(ctx, from, errcore.Unsupported)
 			return fmt.Errorf("not supported channel")
 		}
-		width, height := GetScreenDimensions()
+		width, height := h.window.Size()
 		err = h.communication.PubModule.Publish(ctx, from, order.Order{
 			From: h.config.Name,
 			To: from,

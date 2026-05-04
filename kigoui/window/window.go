@@ -177,3 +177,7 @@ func (w *Window) ClearEnsurance(id uint32) {
 		}
 	}
 }
+
+func (w *Window) Size() (int, int) {
+	return w.app.Size()
+}
