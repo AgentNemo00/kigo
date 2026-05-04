@@ -25,7 +25,7 @@ func NewWindow(ctx context.Context) (*Window ,error) {
 	w := &Window{saved: make([]uint32, 0), savedFor: rand.Uint32()}
 	app := gogpu.NewApp(gogpu.DefaultConfig().
 		WithTitle(" ").
-		WithSize(1080, 900). // TODO: make automated fullscreen
+		WithFullscreen().
 		WithContinuousRender(false))
 	var canvas *ggcanvas.Canvas
 	mu := new(sync.Mutex)

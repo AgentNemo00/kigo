@@ -59,10 +59,9 @@ A list of modules implemented from [this list](https://github.com/MagicMirrorOrg
 
 | Module | Implemented |
 | --- | --- |
-| Text |  |
+| Text | X |
 | Time |  |
 | Calendar |  |
 | Mail |  |
 | Weather |  |
 | Notifications |  |
-
