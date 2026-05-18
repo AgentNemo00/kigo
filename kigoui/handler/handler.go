@@ -24,6 +24,10 @@ import (
 	"github.com/AgentNemo00/sca-instruments/security"
 )
 
+const(
+	headerSize = 14
+)
+
 type Handler struct {
 	communication 		*pubsub.Communication
 	config 				*Config
@@ -179,7 +183,7 @@ func (h *Handler) StartRenderHandshake(ctx context.Context, from string, payload
 	switch(payload.Channel) {
 		case ui.IPC:
 			log.Ctx(ctx).Debug("choose channel ipc")
-			channel, err = h.channelIPC.Open(ctxTransmission, name, frameSize, payload.Timeout, payload.Time)
+			channel, err = h.channelIPC.Open(ctxTransmission, name, (headerSize+frameSize)*3, payload.Timeout, payload.Time)
 			if err != nil {
 				h.Error(ctx, from, errcore.Channel)
 				log.Ctx(ctx).Error("ipc could not be open")
@@ -274,7 +278,7 @@ func (h *Handler) Transform(ctx context.Context, dataChan chan Data, format stri
 				log.Ctx(ctx).Debug("size of data from %d: %d", id, size)
 				data := make([]byte, 0)
 				if size > 0 {
-					data = dataPackage.Data[14:size+14]
+					data = dataPackage.Data[headerSize:headerSize+size]
 				}
 				if format != ui.RAW {
 					// TODO: transform

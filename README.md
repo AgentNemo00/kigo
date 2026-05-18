@@ -60,7 +60,7 @@ A list of modules implemented from [this list](https://github.com/MagicMirrorOrg
 | Module | Implemented |
 | --- | --- |
 | Text | X |
-| Time |  |
+| Time | X |
 | Calendar |  |
 | Mail |  |
 | Weather |  |
