@@ -3,6 +3,7 @@ package window
 import (
 	"context"
 	"image"
+	"math"
 	"math/rand"
 	"sync"
 
@@ -11,6 +12,7 @@ import (
 	"github.com/gogpu/gg"
 	"github.com/gogpu/gg/integration/ggcanvas"
 	"github.com/gogpu/gogpu"
+	"golang.org/x/text/width"
 )
 
 type Window struct {
@@ -122,6 +124,37 @@ func (w *Window) Add(pkg paint.Package) error {
 	w.ClearEnsurance(pkg.ID)
 	
 	return nil
+}
+
+func (w *Window) IsPointOccupied(x, y int) bool {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	for _, frame := range *w.frames {
+		if x > frame.PositionX && x < frame.PositionX+frame.Data.Bounds().Dx() &&
+			y > frame.PositionY && y < frame.PositionY+frame.Data.Bounds().Dy() {
+			return true
+		}
+	}
+	return false
+}
+
+func (w *Window) IsAreaOccupied(x, y, width, height int) (int, int, int, int) { 
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	for _, frame := range *w.frames {
+		// check if overlapping
+		if x < frame.PositionX + frame.Data.Bounds().Dx() &&
+		x + width > frame.PositionX &&
+		y < frame.PositionY + frame.Data.Bounds().Dy() &&
+		y + height > frame.PositionY{
+				left := math.Max(float64(x), float64(frame.PositionX))
+				top := math.Max(float64(y), float64(frame.PositionY))
+				right := math.Min(float64(x+width), float64(frame.PositionX+frame.Data.Bounds().Dx()))
+				bottom := math.Min(float64(y+height), float64(frame.PositionY+frame.Data.Bounds().Dy()))
+			return int(left), int(top), int(right - left), int(bottom - top)
+		}
+	}
+	return -1, -1, -1, -1
 }
 
 func (w *Window) Remove(id uint32) {

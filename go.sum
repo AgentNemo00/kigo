@@ -63,6 +63,8 @@ github.com/AgentNemo00/kigo-core v0.5.13 h1:CHtnoHiGM44u7z1pQT+0l2AlmE8zHaHVqVQu
 github.com/AgentNemo00/kigo-core v0.5.13/go.mod h1:yZE4YxMNoxdUD71D8Tvj7CYC0ToiYRYMEuIHFzuxlTI=
 github.com/AgentNemo00/kigo-core v0.5.14 h1:66dSbhcV7htx52/whbW32urxwfNENQLNQbLoZZgnv7U=
 github.com/AgentNemo00/kigo-core v0.5.14/go.mod h1:yZE4YxMNoxdUD71D8Tvj7CYC0ToiYRYMEuIHFzuxlTI=
+github.com/AgentNemo00/kigo-core v0.5.22 h1:qCQeYj0UIu6V8Xog2lTardtTOuXFqhCeniXsr1PPX+Q=
+github.com/AgentNemo00/kigo-core v0.5.22/go.mod h1:yZE4YxMNoxdUD71D8Tvj7CYC0ToiYRYMEuIHFzuxlTI=
 github.com/AgentNemo00/sca-instruments v0.6.2 h1:OnRqilt4xaxYnxdo8Z6qWxySyboMHkqRacnODkTbfLU=
 github.com/AgentNemo00/sca-instruments v0.6.2/go.mod h1:r0Z8UXfwaBOr67xO1tmfKqw5NVdkZJrnirTtwojTXPQ=
 github.com/AgentNemo00/sca-instruments v0.6.3 h1:Y940sSGTo2YagzpfGh4rQDc9hTLnhx1C1Mb8VWfVges=

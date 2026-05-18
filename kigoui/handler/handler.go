@@ -140,6 +140,59 @@ func (h *Handler) Start(ctx context.Context) error {
 							log.Ctx(ctx).Err(err)
 						}
 						log.Ctx(ctx).Debug("send screen information")
+					case information.Point:
+						payload := information.PointPayload{}
+						err := mapToStruct(data.Payload, &payload)
+						if err != nil {
+							log.Ctx(ctx).Err(err)
+							h.Error(ctx, data.From, errcore.NotificationPayloadInvalid)
+							return
+						}
+						log.Ctx(ctx).Debug("inquiry position information with payload: %v", payload)
+						isOccupied := h.window.IsPointOccupied(payload.X, payload.Y)
+						if !isOccupied {
+							payload.X = -1
+							payload.Y = -1
+						}
+						err = h.communication.PubModule.Publish(ctx, data.From, order.Order{
+							From: h.config.Name,
+							To: data.From,
+							Order: order.OrderInformation,
+							Payload: information.OverlapingResponse{
+								X:   payload.X,
+								Y:    payload.Y,
+								Width:  -1,
+								Height: -1,
+							},
+						})
+						if err != nil {
+							log.Ctx(ctx).Err(err)
+						}
+					case information.Area:
+						payload := information.AreaPayload{}
+						err := mapToStruct(data.Payload, &payload)
+						if err != nil {
+							log.Ctx(ctx).Err(err)
+							h.Error(ctx, data.From, errcore.NotificationPayloadInvalid)
+							return
+						}
+						log.Ctx(ctx).Debug("inquiry area information with payload: %v", payload)
+						x, y, width, height := h.window.IsAreaOccupied(payload.X, payload.Y, payload.Width, payload.Height)
+						err = h.communication.PubModule.Publish(ctx, data.From, order.Order{
+							From: h.config.Name,
+							To: data.From,
+							Order: order.OrderInformation,
+							Payload: information.OverlapingResponse{
+								X:   x,
+								Y:    y,
+								Width:  width,
+								Height: height,
+							},
+						})
+						if err != nil {
+							log.Ctx(ctx).Err(err)
+						}
+						log.Ctx(ctx).Debug("send area information with response: %d, %d, %d, %d", x, y, width, height)
 					default:
 						h.Error(ctx, data.From, errcore.NotificationTypeInvalid)
 				}
