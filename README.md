@@ -19,6 +19,17 @@ I will use [GoGPU](https://github.com/gogpu/ui) as soon at is available for the 
 `KiGo` is responsible for handling the module lifecycle and `KiGoUI` for rendering what the modules want to draw. For more informations about the module lifecycle checkout
 [KiGoCore](https://github.com/AgentNemo00/kigo-core).
 
+### Configuration
+
+Configuration is via env variables:
+
+APP_KIGO_PUBSUBURL - Nats Url, default: `nats://127.0.0.1:4222`
+APP_KIGO_NAME - KiGo pub sub topic, default: `KiGo`
+APP_KIGO_KIGOUI - KiGoUI pub sub topic, default: `KiGoUI`
+APP_KIGO_DATABASE - SQlite database name, default: `kigo.db`
+APP_KIGO_PORT - KiGo REST API port, default: 10001
+APP_KIGO_PING - KiGo REST ping endpoint, default: false
+
 ## Roadmap
 
 ### Phase 0 - Planing Phase

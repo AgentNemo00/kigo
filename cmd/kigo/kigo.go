@@ -13,7 +13,7 @@ import (
 
 func main() {
 	c := &config.Config{}
-	err := configuration.ByEnv(c)
+	err := configuration.ByEnvWithPrefix("KIGO", c)
 	if err != nil {
 		log.Ctx(context.Background()).Err(err)
 		return

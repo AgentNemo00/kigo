@@ -20,7 +20,7 @@ func main() {
 	}
 
 	c := &handler.Config{}
-	err = configuration.ByEnv(c)
+	err = configuration.ByEnvWithPrefix("KIGOUI", c)
 	if err != nil {
 		log.Ctx(ctx).Err(err)
 		return
