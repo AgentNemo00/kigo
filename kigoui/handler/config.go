@@ -32,7 +32,7 @@ func (c *Config) Default() {
 		c.FPS = 24
 	}
 	if len(c.Formats) == 0 {
-		c.Formats = []string{ui.RAW, ui.PNG}
+		c.Formats = []string{ui.RAW, ui.PNG, ui.JPEG}
 	}
 	if len(c.Channels) == 0 {
 		c.Channels = []string{ui.IPC, ui.PubSub}
