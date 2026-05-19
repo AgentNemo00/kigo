@@ -1,10 +1,15 @@
 package handler
 
 import (
+	"bytes"
 	"context"
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
+	"image"
+	"image/draw"
+	"image/jpeg"
+	"image/png"
 	"slices"
 	"time"
 
@@ -25,7 +30,7 @@ import (
 )
 
 const(
-	headerSize = 14
+	headerSize = 16
 )
 
 type Handler struct {
@@ -236,7 +241,7 @@ func (h *Handler) StartRenderHandshake(ctx context.Context, from string, payload
 	switch(payload.Channel) {
 		case ui.IPC:
 			log.Ctx(ctx).Debug("choose channel ipc")
-			channel, err = h.channelIPC.Open(ctxTransmission, name, (headerSize+frameSize)*3, payload.Timeout, payload.Time)
+			channel, err = h.channelIPC.Open(ctxTransmission, name, (headerSize+frameSize)*h.config.OverallPackageBuffer, payload.Timeout, payload.Time)
 			if err != nil {
 				h.Error(ctx, from, errcore.Channel)
 				log.Ctx(ctx).Error("ipc could not be open")
@@ -334,7 +339,43 @@ func (h *Handler) Transform(ctx context.Context, dataChan chan Data, format stri
 					data = dataPackage.Data[headerSize:headerSize+size]
 				}
 				if format != ui.RAW {
-					// TODO: transform
+					switch(format) {
+						case ui.PNG:
+							if len(data) < 8 {
+								log.Ctx(ctx).Err(fmt.Errorf("data too small for PNG"))
+								continue
+							}
+							// sanity check PNG header
+							if data[0] != 0x89 || data[1] != 0x50 || data[2] != 0x4E || data[3] != 0x47 {
+								log.Ctx(ctx).Err(fmt.Errorf("not a PNG stream"))
+								continue
+							}
+							// decode png to raw
+							img, err := png.Decode(bytes.NewReader(data))
+							if err != nil {
+								log.Ctx(ctx).Err(err)
+								continue
+							}
+							b := img.Bounds()
+							dst := image.NewRGBA(b)
+							draw.Draw(dst, b, img, b.Min, draw.Src)
+							data = dst.Pix
+						case ui.JPEG:
+							if len(data) < 2 || data[0] != 0xFF || data[1] != 0xD8 {
+								log.Ctx(ctx).Err(fmt.Errorf("not a JPEG stream"))
+								continue
+							}
+							img, err := jpeg.Decode(bytes.NewReader(data))
+							if err != nil {
+								log.Ctx(ctx).Err(err)
+								continue
+							}
+
+							b := img.Bounds()
+							dst := image.NewRGBA(b)
+							draw.Draw(dst, b, img, b.Min, draw.Src)
+							data = dst.Pix
+						}	
 				}
 				log.Ctx(ctx).Debug("received data package %d, on position %d, %d and dimensions %d, %d", id, positionX, positionY, width, height)			 
 				packageChan <- paint.Package{

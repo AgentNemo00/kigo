@@ -12,7 +12,6 @@ import (
 	"github.com/gogpu/gg"
 	"github.com/gogpu/gg/integration/ggcanvas"
 	"github.com/gogpu/gogpu"
-	"golang.org/x/text/width"
 )
 
 type Window struct {
